@@ -89,48 +89,14 @@ class StorageAwareScheduler(FcfsScheduler):
                     allocation_result,
                 ) in loading_requests:
                     logger.info(f"Processing request for model {model_name}")
-                    scheduling_options = []
-                    logger.info(f"Checking model {model_name}")
-                    for node_id, node_info in worker_nodes.items():
-                        logger.info(
-                            f"Checking node {node_id}, node info: {node_info}"
-                        )
-                        free_gpu = node_info["free_gpu"]
-                        logger.info(f"Node {node_id} has {free_gpu} free GPUs")
-                        if free_gpu < num_gpus:
-                            continue
-                        if node_id not in store_info:
-                            logger.error(
-                                f"Node {node_id} not found in store info"
-                            )
-                            continue
-                        latency = 0
-                        (
-                            node_store_info,
-                            pinned_memory_pool,
-                            node_waiting_time,
-                        ) = store_info[node_id]
-                        if model_name not in node_store_info:
-                            logger.info(
-                                f"Model {model_name} not found in node {node_id}"
-                            )
-                            # Note(Yao): Downloading from HuggingFace Hub is
-                            # slower than network bandwidth and difficult to estimate.
-                            # So we just consider local checkpoints for now.
-                            continue
-                        if model_name not in pinned_memory_pool:
-                            latency += (
-                                node_waiting_time
-                                + model_info[model_name]
-                                / hardware_info[node_id]["disk_bandwidth"]
-                            )
-                        else:
-                            latency += (
-                                model_info[model_name]
-                                / hardware_info[node_id]["pcie_bandwidth"]
-                            )
-                        scheduling_options.append((node_id, latency))
-
+                    scheduling_options = self.schedule(
+                        model_name,
+                        num_gpus,
+                        worker_nodes,
+                        model_info,
+                        store_info,
+                        hardware_info,
+                    )
                     # sort by latency
                     if scheduling_options:
                         scheduling_options.sort(key=lambda x: x[1])
@@ -154,3 +120,49 @@ class StorageAwareScheduler(FcfsScheduler):
                 await self._update_worker_nodes(worker_nodes)
 
             await asyncio.sleep(1)
+
+    def schedule(
+        self,
+        model_name,
+        num_gpus,
+        worker_nodes,
+        model_info,
+        store_info,
+        hardware_info,
+    ):
+        scheduling_options = []
+        logger.info(f"Checking model {model_name}")
+        for node_id, node_info in worker_nodes.items():
+            logger.info(f"Checking node {node_id}, node info: {node_info}")
+            free_gpu = node_info["free_gpu"]
+            logger.info(f"Node {node_id} has {free_gpu} free GPUs")
+            if free_gpu < num_gpus:
+                continue
+            if node_id not in store_info:
+                logger.error(f"Node {node_id} not found in store info")
+                continue
+            latency = 0
+            (
+                node_store_info,
+                pinned_memory_pool,
+                node_waiting_time,
+            ) = store_info[node_id]
+            if model_name not in node_store_info:
+                logger.info(f"Model {model_name} not found in node {node_id}")
+                # Note(Yao): Downloading from HuggingFace Hub is
+                # slower than network bandwidth and difficult to estimate.
+                # So we just consider local checkpoints for now.
+                continue
+            if model_name not in pinned_memory_pool:
+                latency += (
+                    node_waiting_time
+                    + model_info[model_name]
+                    / hardware_info[node_id]["disk_bandwidth"]
+                )
+            else:
+                latency += (
+                    model_info[model_name]
+                    / hardware_info[node_id]["pcie_bandwidth"]
+                )
+            scheduling_options.append((node_id, latency))
+        return scheduling_options
