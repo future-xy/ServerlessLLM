@@ -26,8 +26,9 @@ from serverless_llm.serve.logger import init_logger
 
 # from serverless_llm.serve.inference_instance import start_instance
 
-from ..utils import InstanceStatus
+from ..utils import InstanceStatus, InstanceHandle
 from .roundrobin_router import RoundRobinRouter
+from ..inference_instance import start_instance
 
 logger = init_logger(__name__)
 
@@ -57,11 +58,36 @@ class MigrationRouter(RoundRobinRouter):
                 f"worker_id_{target_node_id}": 0.1,
             },
         }
-        logger.info(f"Starting instance on target node: {startup_config}")
-        target_instance_id = await self._create_instance(startup_config)
+        logger.info(f"Startup config: {startup_config}, {self.backend_config}")
+
+        instance_id = self._new_instance_id()
+        logger.info(
+            f"Creating new instance {instance_id} for model {self.model_name}"
+        )
+        # TODO: Add max_queue_length to instance
+        instance = InstanceHandle(instance_id=instance_id, max_queue_length=10, 
+                                  num_gpu=self.resource_requirements["num_gpus"])
+        
+        await start_instance.options(
+            resources={
+                "worker_node": 0.1,
+                f"worker_id_{target_node_id}": 0.1,
+            }
+        ).remote(instance_id, self.backend, self.backend_config, startup_config)
+        logger.info(
+            f"Started instance {instance_id} for model {self.model_name}"
+        )
+        instance.backend_instance = ray.get_actor(instance_id)
+        async with instance.lock:
+            instance.ready = True
+            instance.node_id = target_node_id
+        await instance.backend_instance.init_backend.remote()
+        async with self.instance_management_lock:
+            self.ready_instances[instance_id] = instance
+
         # stop the instance on the source node
         await self._stop_instance(source_instance_id)
-        return target_instance_id
+        return instance_id
 
     async def get_instance_status(self, instance_id: str) -> InstanceStatus:
         logger.info(f"Getting status for instance: {instance_id}")
