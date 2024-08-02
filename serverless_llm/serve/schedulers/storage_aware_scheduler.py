@@ -51,7 +51,7 @@ class StorageAwareScheduler(FcfsScheduler):
     def __init__(self, scheduler_config: Optional[Mapping] = None):
         super().__init__(scheduler_config)
 
-        self.enable_migration = True
+        self.enable_migration = scheduler_config.get("enable_migration", False)
 
         self.store_manager = None
 
@@ -112,7 +112,7 @@ class StorageAwareScheduler(FcfsScheduler):
                     allocation_result,
                 ) in loading_requests:
                     logger.info(f"Processing request for model {model_name}")
-                    scheduling_options = self.schedule(
+                    scheduling_options = await self.schedule(
                         model_name,
                         num_gpus,
                         worker_nodes,
@@ -167,7 +167,7 @@ class StorageAwareScheduler(FcfsScheduler):
 
             await asyncio.sleep(1)
 
-    def schedule(
+    async def schedule(
         self,
         model_name,
         num_gpus,
@@ -212,7 +212,10 @@ class StorageAwareScheduler(FcfsScheduler):
                 scheduling_options.append(AllocationPlan(node_id, latency))
             elif self.enable_migration:
                 gpu_shortage = num_gpus - free_gpu
-                migration_plans = self.get_migration_plans(
+                logger.info(
+                    f"Node {node_id} does not have enough GPU, trying migration"
+                )
+                migration_plans = await self.get_migration_plans(
                     model_name,
                     gpu_shortage,
                     node_id,
@@ -247,7 +250,9 @@ class StorageAwareScheduler(FcfsScheduler):
         migration_plans = []
         migratable_instances = {}
         request_routers = {}
+        logger.info(f"Checking migratable instances for model {model_name}")
         async with self.metadata_lock:
+            logger.info(f"Checking migratable instances for model {model_name}")
             for target_model_name in self.model_instance:
                 if target_model_name == model_name:
                     continue
@@ -255,14 +260,25 @@ class StorageAwareScheduler(FcfsScheduler):
                     target_model_name
                 ].items():
                     if node_id == source_node_id:
+                        logger.info(
+                            f"Checking instance {instance_id} of model {target_model_name}"
+                        )
                         if target_model_name not in request_routers:
                             request_routers[target_model_name] = ray.get_actor(
                                 target_model_name, namespace="models"
                             )
+                        logger.info(
+                            f"Getting status for instance {instance_id} of model {target_model_name}"
+                        )
                         instance_status = await request_routers[
                             target_model_name
-                        ].get_instance_status.remote()
-                        migratable_instances[instance_id] = instance_status
+                        ].get_instance_status.remote(instance_id)
+                        if instance_status:
+                            logger.info(
+                                f"Instance {instance_id} status: {instance_status}"
+                            )
+                            migratable_instances[instance_id] = instance_status
+        logger.info(f"Migratable instances: {migratable_instances}")
         for instance_id, instance in migratable_instances.items():
             # Skip the instance that is already running the model
             if (

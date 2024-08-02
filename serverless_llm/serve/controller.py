@@ -22,7 +22,7 @@ import ray
 
 from serverless_llm.serve.logger import init_logger
 
-from serverless_llm.serve.routers import RoundRobinRouter
+from serverless_llm.serve.routers import RoundRobinRouter, MigrationRouter
 from serverless_llm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from serverless_llm.serve.store_manager import StoreManager
 
@@ -68,10 +68,19 @@ class SllmController:
         else:
             ray_scheduler_cls = ray.remote(FcfsScheduler)
 
+        enable_migration = True
+        if enable_migration:
+            self.router_cls = ray.remote(MigrationRouter)
+        else:
+            self.router_cls = ray.remote(RoundRobinRouter)
+
         self.scheduler = ray_scheduler_cls.options(
             name="model_loading_scheduler"
-        ).remote()
-
+        ).remote(
+            scheduler_config={
+                "enable_migration": enable_migration,
+            }
+        )
         self.scheduler.start.remote()
 
     async def register(self, model_config):
@@ -98,8 +107,7 @@ class SllmController:
             "num_cpus": 1,
             "num_gpus": model_config.get("num_gpus", 0),
         }
-        request_router_cls = ray.remote(RoundRobinRouter)
-        request_router = request_router_cls.options(
+        request_router = self.router_cls.options(
             name=model_name, namespace="models",
             num_cpus=1, resources={"control_node": 0.1}
         ).remote(model_name, resource_requirements, backend, backend_config)

@@ -45,7 +45,7 @@ class MigrationRouter(RoundRobinRouter):
         )
 
     async def execute_migration_plan(self, migration_plan):
-        self.log(f"Executing migration plan: {migration_plan}")
+        logger.info(f"Executing migration plan: {migration_plan}")
         source_instance_id = migration_plan.source_instance_id
         target_node_id = migration_plan.target_node_id
         # start the instance on the target node
@@ -57,14 +57,21 @@ class MigrationRouter(RoundRobinRouter):
                 f"worker_id_{target_node_id}": 0.1,
             },
         }
+        logger.info(f"Starting instance on target node: {startup_config}")
         target_instance_id = await self._create_instance(startup_config)
         # stop the instance on the source node
         await self._stop_instance(source_instance_id)
         return target_instance_id
 
     async def get_instance_status(self, instance_id: str) -> InstanceStatus:
+        logger.info(f"Getting status for instance: {instance_id}")
         async with self.instance_management_lock:
-            instance = self.instances[instance_id]
+            if instance_id not in self.ready_instances:
+                logger.info(f"Instance {instance_id} not found")
+                return None
+            instance = self.ready_instances[instance_id]
+            logger.info(f"Instance: {instance}")
             instance_status = await instance.get_status()
             instance_status.model_name = self.model_name
+            logger.info(f"Instance status: {instance_status}")
             return instance_status
