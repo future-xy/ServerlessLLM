@@ -16,16 +16,23 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import asyncio
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+import logging
+import uuid
+from typing import Dict, Optional
+
+import ray
 
 from serverless_llm.serve.logger import init_logger
+
+# from serverless_llm.serve.inference_instance import start_instance
+
+from ..utils import InstanceStatus
+from .roundrobin_router import RoundRobinRouter
 
 logger = init_logger(__name__)
 
 
-class SllmRouter(ABC):
-    @abstractmethod
+class MigrationRouter(RoundRobinRouter):
     def __init__(
         self,
         model_name: str,
@@ -33,20 +40,31 @@ class SllmRouter(ABC):
         backend: str,
         backend_config: Dict,
     ) -> None:
-        pass
+        super().__init__(
+            model_name, resource_requirements, backend, backend_config
+        )
 
-    @abstractmethod
-    async def start(self, auto_scaling_config: Dict[str, int]):
-        pass
+    async def execute_migration_plan(self, migration_plan):
+        self.log(f"Executing migration plan: {migration_plan}")
+        source_instance_id = migration_plan.source_instance_id
+        target_node_id = migration_plan.target_node_id
+        # start the instance on the target node
+        startup_config = {
+            "num_cpus": 1,
+            "num_gpus": 1,  # FIXME
+            "resources": {
+                "worker_node": 0.1,
+                f"worker_id_{target_node_id}": 0.1,
+            },
+        }
+        target_instance_id = await self._create_instance(startup_config)
+        # stop the instance on the source node
+        await self._stop_instance(source_instance_id)
+        return target_instance_id
 
-    @abstractmethod
-    async def shutdown(self):
-        pass
-
-    @abstractmethod
-    async def update(self, auto_scaling_config: Dict[str, int]):
-        pass
-
-    @abstractmethod
-    async def generate(self, request_data: dict):
-        pass
+    async def get_instance_status(self, instance_id: str) -> InstanceStatus:
+        async with self.instance_management_lock:
+            instance = self.instances[instance_id]
+            instance_status = await instance.get_status()
+            instance_status.model_name = self.model_name
+            return instance_status

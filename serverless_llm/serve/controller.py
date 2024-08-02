@@ -22,7 +22,6 @@ import ray
 
 from serverless_llm.serve.logger import init_logger
 
-# from serverless_llm.serve.utils import AllocationPlan, MigrationPlan
 from serverless_llm.serve.routers import RoundRobinRouter
 from serverless_llm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from serverless_llm.serve.store_manager import StoreManager
@@ -99,15 +98,17 @@ class SllmController:
             "num_cpus": 1,
             "num_gpus": model_config.get("num_gpus", 0),
         }
-        request_router = RoundRobinRouter.options(  # type:ignore
-            name=model_name, namespace="models"
+        request_router_cls = ray.remote(RoundRobinRouter)
+        request_router = request_router_cls.options(
+            name=model_name, namespace="models",
+            num_cpus=1, resources={"control_node": 0.1}
         ).remote(model_name, resource_requirements, backend, backend_config)
         async with self.metadata_lock:
             if model_name in self.request_routers:
                 logger.error(f"Model {model_name} already registered")
                 return
             self.request_routers[model_name] = request_router
-        request_router.start.remote(auto_scaling_config)
+        await request_router.start.remote(auto_scaling_config)
         logger.info(f"Model {model_name} registered")
 
     async def update(self, model_name: str, model_config: Mapping):

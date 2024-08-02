@@ -16,13 +16,10 @@
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
 import asyncio
-import copy
-import time
 from abc import ABC, abstractmethod
 from typing import Mapping, Optional
 
 from serverless_llm.serve.logger import init_logger
-from serverless_llm.serve.utils import get_worker_nodes
 
 logger = init_logger(__name__)
 
@@ -42,10 +39,12 @@ class SllmScheduler(ABC):
 
     @abstractmethod
     async def allocate_resource(
-        self, model_name: str, resource_requirements: Mapping
+        self, model_name: str, instance_id: str, resources: Mapping
     ):
         pass
 
     @abstractmethod
-    async def deallocate_resource(self, node_id: int, resources: Mapping):
+    async def deallocate_resource(
+        self, model_name: str, instance_id: str, resources: Mapping
+    ):
         pass
