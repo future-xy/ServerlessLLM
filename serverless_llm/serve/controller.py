@@ -108,8 +108,10 @@ class SllmController:
             "num_gpus": model_config.get("num_gpus", 0),
         }
         request_router = self.router_cls.options(
-            name=model_name, namespace="models",
-            num_cpus=1, resources={"control_node": 0.1}
+            name=model_name,
+            namespace="models",
+            num_cpus=1,
+            resources={"control_node": 0.1},
         ).remote(model_name, resource_requirements, backend, backend_config)
         async with self.metadata_lock:
             if model_name in self.request_routers:

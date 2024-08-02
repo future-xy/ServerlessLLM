@@ -65,9 +65,12 @@ class MigrationRouter(RoundRobinRouter):
             f"Creating new instance {instance_id} for model {self.model_name}"
         )
         # TODO: Add max_queue_length to instance
-        instance = InstanceHandle(instance_id=instance_id, max_queue_length=10, 
-                                  num_gpu=self.resource_requirements["num_gpus"])
-        
+        instance = InstanceHandle(
+            instance_id=instance_id,
+            max_queue_length=10,
+            num_gpu=self.resource_requirements["num_gpus"],
+        )
+
         await start_instance.options(
             resources={
                 "worker_node": 0.1,
@@ -84,7 +87,6 @@ class MigrationRouter(RoundRobinRouter):
         await instance.backend_instance.init_backend.remote()
         async with self.instance_management_lock:
             self.ready_instances[instance_id] = instance
-
         # stop the instance on the source node
         await self._stop_instance(source_instance_id)
         return instance_id

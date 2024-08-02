@@ -203,7 +203,8 @@ class RoundRobinRouter(SllmRouter):
                     self.ready_instances
                 )
             logger.info(
-                f"Auto-scaler: {num_running_instances} instances, need {desired_instances} instances"
+                f"{self.model_name}: {num_running_instances} instances,",
+                "need {desired_instances} instances",
             )
             if desired_instances > num_running_instances:
                 logger.info("Creating new instance")
@@ -222,8 +223,11 @@ class RoundRobinRouter(SllmRouter):
             f"Creating new instance {instance_id} for model {self.model_name}"
         )
         # TODO: Add max_queue_length to instance
-        instance = InstanceHandle(instance_id=instance_id, max_queue_length=10, 
-                                  num_gpu=self.resource_requirements["num_gpus"])
+        instance = InstanceHandle(
+            instance_id=instance_id,
+            max_queue_length=10,
+            num_gpu=self.resource_requirements["num_gpus"],
+        )
         async with self.instance_management_lock:
             self.starting_instances[instance_id] = instance
         self.loop.create_task(self._start_instance(instance_id))
