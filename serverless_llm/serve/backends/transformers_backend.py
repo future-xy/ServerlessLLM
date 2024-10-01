@@ -68,15 +68,12 @@ class TransformersBackend(SllmBackend):
                     f"Invalid torch_dtype: {torch_dtype}. Using torch.float16"
                 )
                 torch_dtype = torch.float16
-            storage_path = os.getenv("STORAGE_PATH", "./models")
-            model_path = Path(
-                os.path.join(storage_path, "transformers", self.model_name)
-            ).resolve()
+            model_path = os.path.join("transformers", self.model_name)
+            logger.info(f"Loading model from {model_path}")
             self.model = load_model(
-                str(model_path),
+                model_path=model_path,
                 device_map=device_map,
                 torch_dtype=torch_dtype,
-                storage_path=storage_path,
             )
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
             self.model_initialized = True
