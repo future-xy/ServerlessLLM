@@ -203,8 +203,8 @@ class RoundRobinRouter(SllmRouter):
                     self.ready_instances
                 )
             logger.info(
-                f"{self.model_name}: {num_running_instances} instances,",
-                "need {desired_instances} instances",
+                f"{self.model_name}: {num_running_instances} instances,"
+                f"need {desired_instances} instances",
             )
             if desired_instances > num_running_instances:
                 logger.info("Creating new instance")
