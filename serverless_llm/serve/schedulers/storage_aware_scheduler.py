@@ -122,7 +122,7 @@ class StorageAwareScheduler(FcfsScheduler):
                     )
                     # sort by latency
                     if scheduling_options:
-                        scheduling_options.sort(key=lambda x: x.latency)
+                        scheduling_options.sort(key=lambda x: (x.latency, x.node_id))
                         logger.info(
                             f"Sorted scheduling options: {scheduling_options}"
                         )

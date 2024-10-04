@@ -84,11 +84,55 @@ class MigrationRouter(RoundRobinRouter):
         async with instance.lock:
             instance.ready = True
             instance.node_id = target_node_id
+        logger.info(
+            f"Initialized instance {instance_id} for model {self.model_name}"
+        )
         await instance.backend_instance.init_backend.remote()
-        async with self.instance_management_lock:
-            self.ready_instances[instance_id] = instance
+        logger.info(
+            f"Initialized backend for instance {instance_id} for model {self.model_name}"
+        )
         # stop the instance on the source node
-        await self._stop_instance(source_instance_id)
+        # TODO: start live-migration
+        # 1. migrate all tokens from source to target in multiple rounds
+        # 2. stop the instance on the source node, mark it as migrated.
+        source_instance = self.ready_instances[source_instance_id].backend_instance
+        migration_iter = 0
+        while True:
+            current_tokens = await source_instance.get_current_tokens.remote()
+            if not current_tokens or len(current_tokens) <= 10:
+                logger.info(
+                    "Migration completed:"
+                    f"{0 if not current_tokens else len(current_tokens)} tokens"
+                )
+                break
+            instance.backend_instance.resume_kv_cache.remote(
+                current_tokens
+            )
+            migration_iter += 1
+            logger.info(
+                f"Migration iteration {migration_iter} completed: {current_tokens}"
+            )
+
+        # # TODO: make the two steps as atomic
+        # async with self.instance_management_lock:
+        #     self.ready_instances[instance_id] = instance
+        # await self._shutdown_instance(source_instance_id)
+        logger.info(
+            f"Migrated instance {source_instance_id} to {instance_id}"
+        )
+        async with self.instance_management_lock:
+            if source_instance_id not in self.ready_instances:
+                logger.error(f"Instance {instance_id} not found")
+                return
+            instance = self.ready_instances.pop(source_instance_id)
+            async with instance.lock:
+                instance.status = False
+            self.ready_instances[instance_id] = instance
+        await instance.backend_instance.shutdown.remote()
+        ray.kill(instance.backend_instance)
+        await self.model_loading_scheduler.deallocate_resource.remote(
+            self.model_name, source_instance_id, self.resource_requirements
+        )
         return instance_id
 
     async def get_instance_status(self, instance_id: str) -> InstanceStatus:
