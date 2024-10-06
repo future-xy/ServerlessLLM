@@ -92,17 +92,15 @@ class MigrationRouter(RoundRobinRouter):
             f"Initialized backend for instance {instance_id} for model {self.model_name}"
         )
         # stop the instance on the source node
-        # TODO: start live-migration
-        # 1. migrate all tokens from source to target in multiple rounds
-        # 2. stop the instance on the source node, mark it as migrated.
         source_instance = self.ready_instances[source_instance_id].backend_instance
         migration_iter = 0
         while True:
+            logger.info(f"Migration iteration {migration_iter}")
             current_tokens = await source_instance.get_current_tokens.remote()
             if not current_tokens or len(current_tokens) <= 10:
                 logger.info(
                     "Migration completed:"
-                    f"{0 if not current_tokens else len(current_tokens)} tokens"
+                    f"{None if not current_tokens else len(current_tokens)} tokens"
                 )
                 break
             instance.backend_instance.resume_kv_cache.remote(
