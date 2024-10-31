@@ -17,12 +17,12 @@
 # ---------------------------------------------------------------------------- #
 import argparse
 import os
-import shutil
 
 import torch
-from serverless_llm_store.transformers import save_model
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from sllm_store.transformers import save_model
 
 
 def get_args():

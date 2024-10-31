@@ -2,12 +2,12 @@ import unittest
 from argparse import Namespace
 from unittest.mock import MagicMock, patch
 
-from serverless_llm.cli.deploy import DeployCommand
+from sllm.cli.deploy import DeployCommand
 
 
 class TestDeployCommand(unittest.TestCase):
-    @patch("serverless_llm.cli.deploy.read_config")
-    @patch("serverless_llm.cli.deploy.requests.post")
+    @patch("sllm.cli.deploy.read_config")
+    @patch("sllm.cli.deploy.requests.post")
     def test_deploy_with_model_only(self, mock_post, mock_read_config):
         # Mock read_config to return a default configuration
         mock_read_config.return_value = {
@@ -49,8 +49,8 @@ class TestDeployCommand(unittest.TestCase):
             mock_post.call_args[1]["json"]["model"], "facebook/opt-1.3b"
         )
 
-    @patch("serverless_llm.cli.deploy.read_config")
-    @patch("serverless_llm.cli.deploy.requests.post")
+    @patch("sllm.cli.deploy.read_config")
+    @patch("sllm.cli.deploy.requests.post")
     def test_deploy_with_custom_config(self, mock_post, mock_read_config):
         # Mock the default config
         default_config = {
@@ -104,7 +104,7 @@ class TestDeployCommand(unittest.TestCase):
             mock_post.call_args[1]["json"]["backend"], "transformers"
         )
 
-    @patch("serverless_llm.cli.deploy.read_config")
+    @patch("sllm.cli.deploy.read_config")
     def test_validate_config(self, mock_read_config):
         # Mocked valid configuration
         mock_read_config.return_value = {
@@ -153,24 +153,32 @@ class TestDeployCommand(unittest.TestCase):
 
         # Test with min_instances < 0
         invalid_config_min_instances = valid_config.copy()
-        invalid_config_min_instances["auto_scaling_config"]["min_instances"] = -1
+        invalid_config_min_instances["auto_scaling_config"][
+            "min_instances"
+        ] = -1
         with self.assertRaises(ValueError):
             command.validate_config(invalid_config_min_instances)
 
         # Test with max_instances < 0
         invalid_config_max_instances = valid_config.copy()
-        invalid_config_max_instances["auto_scaling_config"]["max_instances"] = -1
+        invalid_config_max_instances["auto_scaling_config"][
+            "max_instances"
+        ] = -1
         with self.assertRaises(ValueError):
             command.validate_config(invalid_config_max_instances)
 
         # Test with min_instances > max_instances
         invalid_config_min_greater_than_max = valid_config.copy()
-        invalid_config_min_greater_than_max["auto_scaling_config"]["min_instances"] = 6
-        invalid_config_min_greater_than_max["auto_scaling_config"]["max_instances"] = 5
+        invalid_config_min_greater_than_max["auto_scaling_config"][
+            "min_instances"
+        ] = 6
+        invalid_config_min_greater_than_max["auto_scaling_config"][
+            "max_instances"
+        ] = 5
         with self.assertRaises(ValueError):
             command.validate_config(invalid_config_min_greater_than_max)
 
-    @patch("serverless_llm.cli.deploy.read_config")
+    @patch("sllm.cli.deploy.read_config")
     def test_update_config(self, mock_read_config):
         default_config = {
             "model": "",
@@ -210,7 +218,7 @@ class TestDeployCommand(unittest.TestCase):
             updated_config["auto_scaling_config"]["target"], 1
         )  # Should remain as default
 
-    @patch("serverless_llm.cli.deploy.requests.post")
+    @patch("sllm.cli.deploy.requests.post")
     def test_deploy_model_success(self, mock_post):
         # Mock the response of the requests.post
         mock_response = MagicMock()
