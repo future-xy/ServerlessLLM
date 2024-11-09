@@ -23,7 +23,7 @@ import ray
 from sllm.serve.logger import init_logger
 
 # from sllm.serve.utils import AllocationPlan, MigrationPlan
-from sllm.serve.routers import RoundRobinRouter
+from sllm.serve.routers import RoundRobinRouter, MigrationRouter
 from sllm.serve.schedulers import FcfsScheduler, StorageAwareScheduler
 from sllm.serve.store_manager import StoreManager
 

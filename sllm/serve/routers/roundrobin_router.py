@@ -23,6 +23,7 @@ from typing import Dict, Optional
 import ray
 
 from sllm.serve.inference_instance import start_instance
+from sllm.serve.logger import init_logger
 
 from .router_utils import SllmRouter
 from ..utils import InstanceHandle

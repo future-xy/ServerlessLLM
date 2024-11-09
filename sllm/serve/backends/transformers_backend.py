@@ -18,6 +18,7 @@
 import asyncio
 import json
 import os
+import gc
 import time
 import uuid
 from pathlib import Path
@@ -28,8 +29,9 @@ import logging
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer
+from transformers.generation.streamers import BaseStreamer
 
-from sllm.serve.backends.backend_utils import SllmBackend
+from sllm.serve.backends.backend_utils import SllmBackend, BackendStatus
 from sllm.serve.logger import init_logger
 from sllm_store.transformers import load_model
 

@@ -22,9 +22,7 @@ from typing import Dict, Optional
 
 import ray
 
-from serverless_llm.serve.logger import init_logger
-
-# from serverless_llm.serve.inference_instance import start_instance
+from sllm.serve.logger import init_logger
 
 from ..utils import InstanceStatus, InstanceHandle
 from .roundrobin_router import RoundRobinRouter
