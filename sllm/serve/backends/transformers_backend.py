@@ -222,6 +222,7 @@ class TransformersBackend(SllmBackend):
             return {"error": "Missing prompt in request data"}
 
         inputs = self._tokenize(prompt)
+        prompt_tokens = inputs.input_ids.shape[1]
 
         # Generate response
         try:
@@ -234,19 +235,26 @@ class TransformersBackend(SllmBackend):
                 )
         except DeletingException:
             logger.info("Backend is shutting down. Aborting request")
-            output_text = "Backend is shutting down. Please try again later."
+            output_tokens = self.inf_status.get()
+            output_text = self.tokenizer.decode(
+                output_tokens[prompt_tokens:], skip_special_tokens=True
+            )
+            total_tokens = len(output_tokens)
+            completion_tokens = total_tokens - prompt_tokens
+            finish_reason = "abort"
         except Exception as e:
             logger.error(f"Failed to generate response: {e}")
-            output_text = "Failed to generate response. Please try again later."
+            # TODO: return error message
+            output_text = ""
+            finish_reason = "error"
         else:
             output_text = self.tokenizer.decode(
-                outputs[0], skip_special_tokens=True
+                outputs[0][prompt_tokens:], skip_special_tokens=True
             )
-
-        # Simulate token counts for the response
-        prompt_tokens = len(self.tokenizer.tokenize(prompt))
-        completion_tokens = len(self.tokenizer.tokenize(output_text))
-        total_tokens = prompt_tokens + completion_tokens
+            total_tokens = len(outputs[0])
+            completion_tokens = total_tokens - prompt_tokens
+            # FIXME: consider corner case when max_tokens is reached
+            finish_reason = "stop" if completion_tokens < max_tokens else "length"
 
         # Generate response compatible with OpenAI's API
         response = {
@@ -259,7 +267,7 @@ class TransformersBackend(SllmBackend):
                     "index": 0,
                     "message": {"role": "assistant", "content": output_text},
                     "logprobs": None,
-                    "finish_reason": "stop",
+                    "finish_reason": finish_reason,
                 }
             ],
             "usage": {
