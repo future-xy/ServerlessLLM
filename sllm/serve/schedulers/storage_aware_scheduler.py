@@ -17,16 +17,16 @@
 # ---------------------------------------------------------------------------- #
 
 import asyncio
-from dataclasses import dataclass
 import copy
-from typing import Mapping, Optional, List
+from dataclasses import dataclass
+from typing import List, Mapping, Optional
 
 import ray
 
 from sllm.serve.logger import init_logger
 
-from .fcfs_scheduler import FcfsScheduler
 from ..utils import InstanceStatus
+from .fcfs_scheduler import FcfsScheduler
 
 logger = init_logger(__name__)
 
@@ -122,7 +122,9 @@ class StorageAwareScheduler(FcfsScheduler):
                     )
                     # sort by latency
                     if scheduling_options:
-                        scheduling_options.sort(key=lambda x: (x.latency, x.node_id))
+                        scheduling_options.sort(
+                            key=lambda x: (x.latency, x.node_id)
+                        )
                         logger.info(
                             f"Sorted scheduling options: {scheduling_options}"
                         )

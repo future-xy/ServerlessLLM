@@ -15,8 +15,8 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-from .roundrobin_router import RoundRobinRouter
 from .migration_router import MigrationRouter
+from .roundrobin_router import RoundRobinRouter
 from .router_utils import SllmRouter
 
 __all__ = ["SllmRouter", "RoundRobinRouter", "MigrationRouter"]

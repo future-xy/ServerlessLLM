@@ -15,9 +15,9 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
+import asyncio
 from dataclasses import dataclass
 from typing import List, Optional
-import asyncio
 
 import ray
 

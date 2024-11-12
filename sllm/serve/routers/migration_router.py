@@ -24,9 +24,9 @@ import ray
 
 from sllm.serve.logger import init_logger
 
-from ..utils import InstanceStatus, InstanceHandle
-from .roundrobin_router import RoundRobinRouter
 from ..inference_instance import start_instance
+from ..utils import InstanceHandle, InstanceStatus
+from .roundrobin_router import RoundRobinRouter
 
 logger = init_logger(__name__)
 
@@ -90,20 +90,22 @@ class MigrationRouter(RoundRobinRouter):
             f"Initialized backend for instance {instance_id} for model {self.model_name}"
         )
         # stop the instance on the source node
-        source_instance = self.ready_instances[source_instance_id].backend_instance
+        source_instance = self.ready_instances[
+            source_instance_id
+        ].backend_instance
         migration_iter = 0
         while True:
             logger.info(f"Migration iteration {migration_iter}")
-            current_tokens = await source_instance.get_current_tokens.remote()
+            current_tokens = ray.get(
+                source_instance.get_current_tokens.remote()
+            )
             if not current_tokens or len(current_tokens) <= 10:
                 logger.info(
                     "Migration completed:"
                     f"{None if not current_tokens else len(current_tokens)} tokens"
                 )
                 break
-            instance.backend_instance.resume_kv_cache.remote(
-                current_tokens
-            )
+            instance.backend_instance.resume_kv_cache.remote(current_tokens)
             migration_iter += 1
             logger.info(
                 f"Migration iteration {migration_iter} completed: {current_tokens}"
@@ -113,9 +115,7 @@ class MigrationRouter(RoundRobinRouter):
         # async with self.instance_management_lock:
         #     self.ready_instances[instance_id] = instance
         # await self._shutdown_instance(source_instance_id)
-        logger.info(
-            f"Migrated instance {source_instance_id} to {instance_id}"
-        )
+        logger.info(f"Migrated instance {source_instance_id} to {instance_id}")
         async with self.instance_management_lock:
             if source_instance_id not in self.ready_instances:
                 logger.error(f"Instance {instance_id} not found")

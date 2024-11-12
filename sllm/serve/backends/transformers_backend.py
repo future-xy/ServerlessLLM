@@ -15,30 +15,32 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import json
-import os
 import gc
+import json
+import logging
+import os
+import threading
 import time
 import uuid
-from typing import Any, Dict, Optional
 from copy import deepcopy
-import logging
-import threading
+from typing import Any, Dict, Optional
 
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer
 from transformers.generation.streamers import BaseStreamer
 
-from sllm.serve.backends.backend_utils import SllmBackend, BackendStatus
+from sllm.serve.backends.backend_utils import BackendStatus, SllmBackend
 from sllm.serve.logger import init_logger
 from sllm_store.transformers import load_model
 
-# logger = init_logger(__name__)
-logger = logging.getLogger("ray")
+logger = init_logger(__name__)
+# logger = logging.getLogger("ray")
+
 
 class DeletingException(Exception):
     pass
+
 
 class InferenceStatus(BaseStreamer):
     def __init__(self, status: BackendStatus):
@@ -49,7 +51,7 @@ class InferenceStatus(BaseStreamer):
     def put(self, value):
         value = value.flatten().tolist()
         self.intermediate.extend(value)
-        logger.warn(f"Intermediate output: {self.intermediate}")
+        logger.warning(f"Intermediate output: {self.intermediate}")
         if self.status == BackendStatus.DELETING:
             raise DeletingException("Backend is deleting")
 
@@ -58,7 +60,7 @@ class InferenceStatus(BaseStreamer):
 
     def get(self):
         return deepcopy(self.intermediate)
-    
+
     def delete(self):
         logger.info("Deleting intermediate output")
         self.intermediate = []
@@ -224,8 +226,10 @@ class TransformersBackend(SllmBackend):
         try:
             with torch.no_grad():
                 outputs = self.model.generate(
-                    **inputs, max_new_tokens=max_tokens, temperature=temperature,
-                    streamer=self.inf_status
+                    **inputs,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
+                    streamer=self.inf_status,
                 )
         except DeletingException:
             logger.info("Backend is shutting down. Aborting request")
@@ -307,7 +311,7 @@ class TransformersBackend(SllmBackend):
                 return []
         # TODO: debug this code
         status = self.inf_status.get()
-        logger.fatal(f"Current tokens: {status}")
+        logger.info(f"Current tokens: {status}")
         return status
 
     def resume_kv_cache(self, request_datas):
