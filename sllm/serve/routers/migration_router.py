@@ -42,7 +42,61 @@ class MigrationRouter(RoundRobinRouter):
         super().__init__(
             model_name, resource_requirements, backend, backend_config
         )
+        self.migration_record = {}
 
+    async def inference(self, request_data: dict, action: str):
+        async with self.running_lock:
+            if not self.running:
+                return {"error": "Instance stopped"}
+
+        async with self.request_count_lock:
+            self.request_count += 1
+
+        instance_allocation = self.loop.create_future()
+        await self.request_queue.put(instance_allocation)
+        logger.info(f"Enqueued request for model {self.model_name}")
+
+        instance_id = await instance_allocation
+        logger.info(f"{request_data}, type: {type(request_data)}")
+        async with self.instance_management_lock:
+            if instance_id not in self.ready_instances:
+                logger.error(f"Instance {instance_id} not found")
+                return {"error": "Instance not found"}
+            instance = self.ready_instances[instance_id]
+        # NOTE: `.remote(request_data)` does not work, don't know why.
+        # Looks like a known issue:
+        # https://github.com/ray-project/ray/issues/26283#issuecomment-1780691475
+        if action == "generate":
+            result = await instance.backend_instance.generate.remote(
+                request_data=request_data
+            )
+            if "preempted" in result:
+                logger.info(f"Preempted request: {result}")
+                target_instance_id = self.migration_record.get(instance_id)
+                if not target_instance_id:
+                    logger.error(f"No target instance found for {instance_id}")
+                    return {"error": "No target instance found"}
+                target_instance = self.ready_instances[target_instance_id]
+                logger.info(f"Resuming request on target instance: {target_instance_id}")
+                if "max_tokens" in request_data:
+                    request_data["max_tokens"] -= result["completed_tokens"]
+                result = await target_instance.backend_instance.resume_generate.remote(
+                    request_data=request_data,
+                    current_output=result["current_output"]
+                )
+
+        elif action == "encode":
+            result = await instance.backend_instance.encode.remote(
+                request_data=request_data
+            )
+        else:
+            result = {"error": "Invalid action"}
+        logger.info(f"Finished processing request")
+        await instance.add_requests(-1)
+        async with self.request_count_lock:
+            self.request_count -= 1
+        return result
+    
     async def execute_migration_plan(self, migration_plan):
         logger.info(f"Executing migration plan: {migration_plan}")
         source_instance_id = migration_plan.source_instance_id
@@ -133,6 +187,7 @@ class MigrationRouter(RoundRobinRouter):
             async with source_instance.lock:
                 source_instance.status = False
             self.ready_instances[instance_id] = target_instance
+            self.migration_record[source_instance_id] = instance_id
         logger.info(f"Instance {source_instance_id} removed")
         await source_instance.backend_instance.shutdown.remote()
         logger.info(f"Shutdown instance {source_instance_id}")

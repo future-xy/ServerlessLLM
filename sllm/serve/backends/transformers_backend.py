@@ -236,17 +236,13 @@ class TransformersBackend(SllmBackend):
         except DeletingException:
             logger.info("Backend is shutting down. Aborting request")
             output_tokens = self.inf_status.get()
-            output_text = self.tokenizer.decode(
-                output_tokens[prompt_tokens:], skip_special_tokens=True
-            )
-            total_tokens = len(output_tokens)
-            completion_tokens = total_tokens - prompt_tokens
-            finish_reason = "abort"
+            self.inf_status.delete()
+            return {"preempted": "True",
+                    "current_output": output_tokens,
+                    "completed_tokens": len(output_tokens)-prompt_tokens}
         except Exception as e:
             logger.error(f"Failed to generate response: {e}")
-            # TODO: return error message
-            output_text = ""
-            finish_reason = "error"
+            raise e
         else:
             output_text = self.tokenizer.decode(
                 outputs[0][prompt_tokens:], skip_special_tokens=True
@@ -256,30 +252,30 @@ class TransformersBackend(SllmBackend):
             # FIXME: consider corner case when max_tokens is reached
             finish_reason = "stop" if completion_tokens < max_tokens else "length"
 
-        # Generate response compatible with OpenAI's API
-        response = {
-            "id": f"chatcmpl-{uuid.uuid4()}",
-            "object": "chat.completion",
-            "created": int(time.time()),
-            "model": model_name,
-            "choices": [
-                {
-                    "index": 0,
-                    "message": {"role": "assistant", "content": output_text},
-                    "logprobs": None,
-                    "finish_reason": finish_reason,
-                }
-            ],
-            "usage": {
-                "prompt_tokens": prompt_tokens,
-                "completion_tokens": completion_tokens,
-                "total_tokens": total_tokens,
-            },
-        }
+            # Generate response compatible with OpenAI's API
+            response = {
+                "id": f"chatcmpl-{uuid.uuid4()}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": output_text},
+                        "logprobs": None,
+                        "finish_reason": finish_reason,
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                },
+            }
 
-        self.inf_status.delete()
+            self.inf_status.delete()
 
-        return response
+            return response
 
     def shutdown(self):
         """Abort all requests and shutdown the backend."""
@@ -296,10 +292,10 @@ class TransformersBackend(SllmBackend):
 
         if self.model is not None:
             del self.model
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
+        # gc.collect()
+        # if torch.cuda.is_available():
+        #     torch.cuda.empty_cache()
+        #     torch.cuda.synchronize()
 
     def stop(self) -> None:
         """Wait for all requests to finish and shutdown the backend."""
@@ -336,3 +332,81 @@ class TransformersBackend(SllmBackend):
             )
             self.past_key_values = output.past_key_values
         logger.info(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")
+
+    def resume_generate(self, request_data: Optional[Dict[str, Any]], current_output):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
+                return {"error": "Model not initialized"}
+
+        assert self.model is not None
+
+        model_name = request_data.get("model", "dummy-model")
+        messages = request_data.get("messages", [])
+        temperature = request_data.get("temperature", 0.7)
+        max_tokens = request_data.get("max_tokens", 10)
+
+        # Combine messages to form the prompt
+        prompt = "\n".join(
+            [
+                f"{message['role']}: {message['content']}"
+                for message in messages
+                if "content" in message
+            ]
+        )
+
+        if not prompt:
+            return {"error": "Missing prompt in request data"}
+
+        inputs = self._tokenize(prompt)
+        prompt_tokens = inputs.input_ids.shape[1]
+
+        # Generate response
+        try:
+            with torch.no_grad():
+                current_output = torch.tensor(current_output).reshape(1, -1).to("cuda")
+                outputs = self.model.generate(
+                    current_output,
+                    past_key_values=self.past_key_values,
+                    max_new_tokens=max_tokens,
+                    temperature=temperature,
+                    streamer=self.inf_status,
+                )
+        except DeletingException:
+            logger.error("Backend is shutting down. Aborting request")
+            raise DeletingException("Backend is shutting down")
+        except Exception as e:
+            logger.error(f"Failed to generate response: {e}")
+            raise e
+        else:
+            output_text = self.tokenizer.decode(
+                outputs[0][prompt_tokens:], skip_special_tokens=True
+            )
+            total_tokens = len(outputs[0])
+            completion_tokens = total_tokens - prompt_tokens
+            # FIXME: consider corner case when max_tokens is reached
+            finish_reason = "stop" if completion_tokens < max_tokens else "length"
+
+            # Generate response compatible with OpenAI's API
+            response = {
+                "id": f"chatcmpl-{uuid.uuid4()}",
+                "object": "chat.completion",
+                "created": int(time.time()),
+                "model": model_name,
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": output_text},
+                        "logprobs": None,
+                        "finish_reason": finish_reason,
+                    }
+                ],
+                "usage": {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                },
+            }
+
+            self.inf_status.delete()
+
+            return response
