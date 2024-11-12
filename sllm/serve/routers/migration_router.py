@@ -94,18 +94,22 @@ class MigrationRouter(RoundRobinRouter):
             source_instance_id
         ].backend_instance
         migration_iter = 0
+        n_previous_tokens = 0
         while True:
             logger.info(f"Migration iteration {migration_iter}")
             current_tokens = ray.get(
                 source_instance.get_current_tokens.remote()
             )
-            if not current_tokens or len(current_tokens) <= 10:
+            logger.info(f"Number of tokens: {current_tokens}, delta: {len(current_tokens) - n_previous_tokens}")
+            n_delta_tokens = len(current_tokens) - n_previous_tokens
+            n_previous_tokens = len(current_tokens)
+            if not current_tokens or n_delta_tokens <= 10:
                 logger.info(
                     "Migration completed:"
                     f"{None if not current_tokens else len(current_tokens)} tokens"
                 )
                 break
-            instance.backend_instance.resume_kv_cache.remote(current_tokens)
+            ray.get(instance.backend_instance.resume_kv_cache.remote(current_tokens))
             migration_iter += 1
             logger.info(
                 f"Migration iteration {migration_iter} completed: {current_tokens}"

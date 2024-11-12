@@ -78,6 +78,7 @@ class TransformersBackend(SllmBackend):
         self.model_name = backend_config.get("pretrained_model_name_or_path")
         self.model = None
         self.tokenizer = None
+        self.past_key_values = None
 
     def convert_str_to_json(self, json_str):
         try:
@@ -315,5 +316,15 @@ class TransformersBackend(SllmBackend):
         return status
 
     def resume_kv_cache(self, request_datas):
-        logger.error("Not implemented")
-        raise NotImplementedError
+        logger.info(f"Resuming cache for {request_datas}")
+        with torch.no_grad():
+            input_ids = torch.tensor(request_datas).reshape(1, -1).to("cuda")
+            output = self.model.generate(
+                input_ids,
+                past_key_values=self.past_key_values,
+                max_new_tokens=1,
+                return_dict_in_generate=True,
+                return_legacy_cache=True,
+            )
+            self.past_key_values = output.past_key_values
+        logger.info(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")

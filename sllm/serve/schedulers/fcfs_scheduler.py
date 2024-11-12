@@ -89,7 +89,7 @@ class FcfsScheduler(SllmScheduler):
     async def deallocate_resource(
         self, model_name: str, instance_id: str, resources: Mapping
     ):
-        logger.info(f"Model {model_name} deallocated")
+        logger.info(f"Deallocating model {model_name} instance {instance_id}")
         # TODO: consider other resources
         num_gpus = resources.get("num_gpus", 0)
         async with self.metadata_lock:
@@ -105,6 +105,7 @@ class FcfsScheduler(SllmScheduler):
                 logger.error(f"Node {node_id} not found")
                 return
             self.worker_nodes[node_id]["free_gpu"] += num_gpus
+        logger.info(f"Model {model_name} instance {instance_id} deallocated")
 
     async def _control_loop(self):
         logger.info("Starting control loop")
