@@ -1,0 +1,16 @@
+{
+  "0": {
+    "host_size": "10GB",
+    "host_bandwidth": "24GB/s",
+    "disk_size": "128GB",
+    "disk_bandwidth": "5GB/s",
+    "network_bandwidth": "10Gbps"
+  },
+  "1": {
+    "host_size": "10GB",
+    "host_bandwidth": "24GB/s",
+    "disk_size": "128GB",
+    "disk_bandwidth": "5GB/s",
+    "network_bandwidth": "10Gbps"
+  }
+}
