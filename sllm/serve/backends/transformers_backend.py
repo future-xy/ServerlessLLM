@@ -15,7 +15,6 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import asyncio
 import json
 import os
 import gc
@@ -24,6 +23,7 @@ import uuid
 from typing import Any, Dict, Optional
 from copy import deepcopy
 import logging
+import threading
 
 import torch
 import torch.nn.functional as F
@@ -71,7 +71,8 @@ class TransformersBackend(SllmBackend):
             f"Initializing TransformersBackend with config: {backend_config}"
         )
         self.status: BackendStatus = BackendStatus.UNINITIALIZED
-        self.status_lock = asyncio.Lock()
+        self.inf_status = InferenceStatus(self.status)
+        self.status_lock = threading.Lock()
         self.model_name = backend_config.get("pretrained_model_name_or_path")
         self.model = None
         self.tokenizer = None
@@ -85,8 +86,8 @@ class TransformersBackend(SllmBackend):
             logger.error(f"Failed to decode JSON string: {e}")
             return None
 
-    async def init_backend(self) -> None:
-        async with self.status_lock:
+    def init_backend(self) -> None:
+        with self.status_lock:
             if self.status != BackendStatus.UNINITIALIZED:
                 return
             device_map = self.backend_config.get("device_map", "auto")
@@ -116,7 +117,7 @@ class TransformersBackend(SllmBackend):
                 hf_model_class=hf_model_class,
             )
             self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
-            self.model_initialized = True
+            self.status = BackendStatus.RUNNING
 
     def _tokenize(self, prompt: str):
         return self.tokenizer(prompt, return_tensors="pt").to("cuda:0")
@@ -130,9 +131,9 @@ class TransformersBackend(SllmBackend):
             return_tensors="pt",
         ).to("cuda:0")
 
-    async def encode(self, request_data: Optional[Dict[str, Any]]):
-        async with self.model_status_lock:
-            if not self.model_initialized:
+    def encode(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
+            if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
         def last_token_pool(
@@ -193,8 +194,8 @@ class TransformersBackend(SllmBackend):
 
         return response
 
-    async def generate(self, request_data: Optional[Dict[str, Any]]):
-        async with self.status_lock:
+    def generate(self, request_data: Optional[Dict[str, Any]]):
+        with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
 
@@ -267,9 +268,9 @@ class TransformersBackend(SllmBackend):
 
         return response
 
-    async def shutdown(self):
+    def shutdown(self):
         """Abort all requests and shutdown the backend."""
-        async with self.status_lock:
+        with self.status_lock:
             if self.status == BackendStatus.DELETING:
                 return
             self.status = BackendStatus.DELETING
@@ -278,7 +279,7 @@ class TransformersBackend(SllmBackend):
 
         while self.inf_status and len(self.inf_status.get()) > 0:
             logger.info("Waiting for all requests to finish")
-            await asyncio.sleep(1)
+            time.sleep(1)
 
         if self.model is not None:
             del self.model
@@ -287,21 +288,21 @@ class TransformersBackend(SllmBackend):
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Wait for all requests to finish and shutdown the backend."""
-        async with self.status_lock:
+        with self.status_lock:
             if self.status.value >= BackendStatus.STOPPING.value:
                 return
             self.status = BackendStatus.STOPPING
         while self.inf_status and len(self.inf_status.get()) > 0:
             logger.info("Waiting for all requests to finish")
-            await asyncio.sleep(1)
+            time.sleep(1)
         logger.info("All requests finished. Shutting down the backend.")
-        await self.shutdown()
+        self.shutdown()
 
-    async def get_current_tokens(self):
+    def get_current_tokens(self):
         """Return a list of all ongoing request tokens."""
-        async with self.status_lock:
+        with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return []
         # TODO: debug this code
@@ -309,6 +310,6 @@ class TransformersBackend(SllmBackend):
         logger.fatal(f"Current tokens: {status}")
         return status
 
-    async def resume_kv_cache(self, request_datas):
+    def resume_kv_cache(self, request_datas):
         logger.error("Not implemented")
         raise NotImplementedError
