@@ -141,20 +141,26 @@ class StorageAwareScheduler(FcfsScheduler):
                                 logger.info(
                                     f"Executing migration plan: {migration_plan}"
                                 )
-                                await target_request_router.execute_migration_plan.remote(
-                                    migration_plan
-                                )
                                 target_node_id = migration_plan.target_node_id
-                                source_node_id = migration_plan.source_node_id
-                                worker_nodes[source_node_id]["free_gpu"] += (
-                                    1  # FIXME
-                                )
                                 worker_nodes[target_node_id]["free_gpu"] -= (
                                     1  # FIXME
                                 )
+                                target_instance_id = await target_request_router.execute_migration_plan.remote(
+                                    migration_plan
+                                )
+                                logger.info(
+                                    f"Migrated instance {target_model} to node {target_node_id} instance {target_instance_id}"
+                                )
+
                         node_id = allocation_plan.node_id
+                        logger.info(
+                            f"Allocating node {node_id} for model {model_name}"
+                        )
                         async with self.queue_lock:
                             self.model_loading_queues[model_name].pop(idx)
+                            logger.info(
+                                f"Allocated node {node_id} for model {model_name}"
+                            )
                             allocation_result.set_result(node_id)
                         logger.info(
                             f"Allocated node {node_id} for model {model_name}"
@@ -319,3 +325,13 @@ class StorageAwareScheduler(FcfsScheduler):
             return None
         else:
             return migration_plans
+
+    async def mark_resource(
+        self, model_name: str, instance_id: str, node_id: int
+    ) -> bool:
+        logger.info(f"Model {model_name} instance {instance_id} marked")
+        async with self.metadata_lock:
+            if model_name not in self.model_instance:
+                self.model_instance[model_name] = {}
+            self.model_instance[model_name][instance_id] = node_id
+        return node_id

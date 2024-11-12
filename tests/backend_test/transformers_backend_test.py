@@ -202,6 +202,38 @@ def test_get_current_tokens(transformers_backend, model, tokenizer):
         thread.join()
 
 
+def test_shutdown(transformers_backend, model, tokenizer):
+    with patch(
+        "sllm.serve.backends.transformers_backend.load_model",
+        return_value=model,
+    ), patch(
+        "sllm.serve.backends.transformers_backend.TransformersBackend._tokenize",
+        return_value=tokenizer,
+    ):
+        transformers_backend.init_backend()
+        input = {
+            "model": "facebook/opt-125m",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Hello, how are you? I am fine, thank you!",
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 128,
+        }
+        import threading
+        # Create a thread to call the generate method
+        thread = threading.Thread(target=transformers_backend.generate, args=(input,))
+        thread.start()
+        # Sleep for 1 second to allow the thread to start
+        import time
+        time.sleep(1)
+        # Shutdown the backend
+        transformers_backend.shutdown()
+        thread.join()
+
+        
 def test_encode(encoder_backend, encoder, encoder_tokenizer):
     with patch(
         "sllm.serve.backends.transformers_backend.load_model",
