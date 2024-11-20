@@ -51,6 +51,11 @@ def main():
         action="store_true",
         help="Enable storage-aware scheduling.",
     )
+    start_parser.add_argument(
+        "--enable_migration",
+        action="store_true",
+        help="Enable live migration of model instances.",
+    )
     args = parser.parse_args()
 
     try:

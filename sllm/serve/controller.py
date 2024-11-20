@@ -71,7 +71,7 @@ class SllmController:
         else:
             ray_scheduler_cls = ray.remote(FcfsScheduler)
 
-        enable_migration = True
+        enable_migration = self.config.get("enable_migration", False)
         if enable_migration:
             self.router_cls = ray.remote(MigrationRouter)
         else:

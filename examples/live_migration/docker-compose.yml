@@ -15,7 +15,7 @@ services:
       - sllm_network
     # volumes:
     #   - ./hardware_config.json:/app/hardware_config.json
-    command: ["--enable_storage_aware"]
+    command: ["--enable_storage_aware", "--enable_migration"]
 
   # Worker Node 0
   sllm_worker_0:
