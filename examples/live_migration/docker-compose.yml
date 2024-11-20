@@ -13,9 +13,9 @@ services:
       - "8343:8343"    # ServerlessLLM port
     networks:
       - sllm_network
-    volumes:
-      - ./hardware_config.json:/app/hardware_config.json
-    command: ["--hardware-config", "/app/hardware_config.json"]
+    # volumes:
+    #   - ./hardware_config.json:/app/hardware_config.json
+    command: ["--enable_storage_aware"]
 
   # Worker Node 0
   sllm_worker_0:
@@ -30,7 +30,7 @@ services:
           devices:
             - driver: nvidia
               capabilities: ["gpu"]
-              count: 1  # Assigns 1 GPU to the worker
+              device_ids: ["0"] # Assigns GPU 0 to the worker
     environment:
       - WORKER_ID=0
       - STORAGE_PATH=/models
@@ -53,7 +53,7 @@ services:
           devices:
             - driver: nvidia
               capabilities: ["gpu"]
-              count: 1  # Assigns 1 GPU to the worker
+              device_ids: ["1"] # Assigns GPU 1 to the worker
     environment:
       - WORKER_ID=1
       - STORAGE_PATH=/models
