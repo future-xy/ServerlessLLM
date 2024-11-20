@@ -10,6 +10,5 @@
       "content": "What is your name?"
     }
   ],
-  "temperature": 0.7,
   "max_tokens": 50
 }
