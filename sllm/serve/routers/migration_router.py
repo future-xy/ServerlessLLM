@@ -152,7 +152,13 @@ class MigrationRouter(RoundRobinRouter):
         logger.info(
             f"Initialized backend for instance {instance_id} for model {self.model_name}"
         )
-        # stop the instance on the source node
+        # migrate the tokens from the source_instance (if still running) to the target_instance
+        if source_instance_id not in self.ready_instances:
+            logger.info(f"Instance {source_instance_id} not found")
+            target_instance.ready = False
+            await target_instance.backend_instance.shutdown.remote()
+            ray.kill(target_instance.backend_instance)
+            return None
         source_instance = self.ready_instances[
             source_instance_id
         ]

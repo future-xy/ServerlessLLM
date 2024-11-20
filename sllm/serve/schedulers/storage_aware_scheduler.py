@@ -148,9 +148,17 @@ class StorageAwareScheduler(FcfsScheduler):
                                 target_instance_id = await target_request_router.execute_migration_plan.remote(
                                     migration_plan
                                 )
-                                logger.info(
-                                    f"Migrated instance {target_model} to node {target_node_id} instance {target_instance_id}"
-                                )
+                                if target_instance_id is None:
+                                    logger.info(
+                                        f"Failed to execute migration plan: {migration_plan}"
+                                    )
+                                    worker_nodes[target_node_id]["free_gpu"] += (
+                                        1  # FIXME
+                                    )
+                                else:
+                                    logger.info(
+                                        f"Migrated instance {target_model} to node {target_node_id} instance {target_instance_id}"
+                                    )
 
                         node_id = allocation_plan.node_id
                         logger.info(
