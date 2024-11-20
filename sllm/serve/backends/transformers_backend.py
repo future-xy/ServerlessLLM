@@ -35,7 +35,6 @@ from sllm.serve.logger import init_logger
 from sllm_store.transformers import load_model
 
 logger = init_logger(__name__)
-# logger = logging.getLogger("ray")
 
 
 class DeletingException(Exception):
