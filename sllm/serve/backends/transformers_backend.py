@@ -341,13 +341,12 @@ class TransformersBackend(SllmBackend):
         max_tokens = request_data.get("max_tokens", 10)
 
         # Combine messages to form the prompt
-        prompt = "\n".join(
-            [
-                f"{message['role']}: {message['content']}"
-                for message in messages
-                if "content" in message
-            ]
+        prompt = self.tokenizer.apply_chat_template(
+            messages, add_generation_prompt=True, tokenize=False
         )
+
+        if not prompt:
+            return {"error": "Missing prompt in request data"}
 
         if not prompt:
             return {"error": "Missing prompt in request data"}

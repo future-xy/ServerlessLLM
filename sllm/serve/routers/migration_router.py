@@ -103,8 +103,8 @@ class MigrationRouter(RoundRobinRouter):
         target_node_id = migration_plan.target_node_id
         # start the target_instance on the target node
         startup_config = {
-            "num_cpus": 1,
-            "num_gpus": 1,  # FIXME
+            "num_cpus": self.resource_requirements["num_cpus"],
+            "num_gpus": self.resource_requirements["num_gpus"],
             "resources": {
                 "worker_node": 0.1,
                 f"worker_id_{target_node_id}": 0.1,
