@@ -246,7 +246,7 @@ def test_encode(encoder_backend, encoder, encoder_tokenizer):
         input = {
             "model": "BAAI/bge-small-en-v1.5",
             "task_instruct": "Given a question, retrieve passages that answer the question",
-            "query": ["Hi, How are you?"],
+            "input": ["Hi, How are you?"],
         }
         result = encoder_backend.encode(input)
         assert "error" not in result

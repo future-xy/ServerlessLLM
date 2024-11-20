@@ -703,3 +703,9 @@ LD
 pty
 srun
 customizable
+gte
+Qwen
+MiniLM
+L12
+RTX
+GeForce
