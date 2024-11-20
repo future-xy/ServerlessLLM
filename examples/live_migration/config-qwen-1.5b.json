@@ -1,5 +1,5 @@
 {
-    "model": "facebook/opt-1.3b",
+    "model": "Qwen/Qwen2.5-1.5B-Instruct",
     "backend": "transformers",
     "num_gpus": 1,
     "auto_scaling_config": {
@@ -12,7 +12,7 @@
         "target_nodes": ["0"]
     },
     "backend_config": {
-        "pretrained_model_name_or_path": "facebook/opt-1.3b",
+        "pretrained_model_name_or_path": "Qwen/Qwen2.5-1.5B-Instruct",
         "device_map": "auto",
         "torch_dtype": "float16"
     }

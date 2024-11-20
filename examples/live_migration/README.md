@@ -5,12 +5,32 @@ docker compose up -d --build
 ```
 
 ```bash
-sllm-cli deploy --config config-opt-2.7b.json
-sllm-cli deploy --config config-opt-1.3b.json
+sllm-cli deploy --config config-qwen-3b.json
+sllm-cli deploy --config config-qwen-1.5b.json
 ```
 
 ```bash
-sllm-cli generate input-opt-2.7b.json &
+curl http://127.0.0.1:8343/v1/chat/completions \
+-H "Content-Type: application/json" \
+-d '{
+        "model": "Qwen/Qwen2.5-3B-Instruct",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "Could you share a story of the history of Computer Science?"}
+        ],
+        "max_tokens": 1024
+    }' &
+
 sleep 3
-sllm-cli generate input-opt-1.3b.json
+
+curl http://127.0.0.1:8343/v1/chat/completions \
+-H "Content-Type: application/json" \
+-d '{
+        "model": "Qwen/Qwen2.5-1.5B-Instruct",
+        "messages": [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "What is your name?"}
+        ],
+        "max_tokens": 64
+    }'
 ```
