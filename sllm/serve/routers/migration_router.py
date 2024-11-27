@@ -215,5 +215,8 @@ class MigrationRouter(RoundRobinRouter):
             logger.info(f"Instance: {instance}")
             instance_status = await instance.get_status()
             instance_status.model_name = self.model_name
+            instance_status.num_current_tokens = len(
+                await instance.backend_instance.get_current_tokens.remote()
+            )
             logger.info(f"Instance status: {instance_status}")
             return instance_status

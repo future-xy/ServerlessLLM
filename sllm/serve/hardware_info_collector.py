@@ -22,7 +22,7 @@ def collect_all_info():
     """
     hardware_info = {}
     hardware_info["host_size"] = get_memory_info()
-    hardware_info["pcie_bandwidth"] = 25000 # 25 GB/s for PCIe 4.0
+    hardware_info["pcie_bandwidth"] = 25_000_000_000 # 25 GB/s for PCIe 4.0
     hardware_info["disk_size"] = get_disk_info()
     write_bw, read_bw = benchmark_disk_bandwidth()
     hardware_info["disk_bandwidth"] = (

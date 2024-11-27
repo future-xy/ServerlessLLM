@@ -287,10 +287,6 @@ class TransformersBackend(SllmBackend):
 
         if self.model is not None:
             del self.model
-        # gc.collect()
-        # if torch.cuda.is_available():
-        #     torch.cuda.empty_cache()
-        #     torch.cuda.synchronize()
 
     def stop(self) -> None:
         """Wait for all requests to finish and shutdown the backend."""
@@ -309,7 +305,7 @@ class TransformersBackend(SllmBackend):
         with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return []
-        # TODO: debug this code
+
         status = self.inf_status.get()
         logger.info(f"Current tokens: {status}")
         return status
@@ -344,9 +340,6 @@ class TransformersBackend(SllmBackend):
         prompt = self.tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, tokenize=False
         )
-
-        if not prompt:
-            return {"error": "Missing prompt in request data"}
 
         if not prompt:
             return {"error": "Missing prompt in request data"}

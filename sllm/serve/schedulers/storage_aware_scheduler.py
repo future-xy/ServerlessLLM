@@ -16,6 +16,7 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
+from abc import ABCMeta
 import asyncio
 import copy
 from dataclasses import dataclass
@@ -55,7 +56,7 @@ class StorageAwareScheduler(FcfsScheduler):
 
         self.store_manager = None
 
-        self.worker_models = {}
+        self.model_scheduler_config = {}
 
     async def _control_loop(self):
         logger.info("Starting control loop")
@@ -161,18 +162,13 @@ class StorageAwareScheduler(FcfsScheduler):
                                     )
 
                         node_id = allocation_plan.node_id
-                        logger.info(
-                            f"Allocating node {node_id} for model {model_name}"
-                        )
                         async with self.queue_lock:
                             self.model_loading_queues[model_name].pop(idx)
                             logger.info(
                                 f"Allocated node {node_id} for model {model_name}"
                             )
                             allocation_result.set_result(node_id)
-                        logger.info(
-                            f"Allocated node {node_id} for model {model_name}"
-                        )
+
                         worker_nodes[node_id]["free_gpu"] -= num_gpus
                         await self.store_manager.load_to_host.remote(
                             node_id, model_name
@@ -212,24 +208,13 @@ class StorageAwareScheduler(FcfsScheduler):
                 # slower than network bandwidth and difficult to estimate.
                 # So we just consider local checkpoints for now.
                 continue
-            latency = 0
-            if model_name not in pinned_memory_pool:
-                latency += (
-                    node_waiting_time
-                    + model_info[model_name]
-                    / hardware_info[node_id]["disk_bandwidth"]
-                )
-                logger.info(
-                    f"Loading model {model_name} takes {latency} seconds"
-                )
-            else:
-                latency += (
-                    model_info[model_name]
-                    / hardware_info[node_id]["pcie_bandwidth"]
-                )
-                logger.info(
-                    f"Loading model {model_name} takes {latency} seconds"
-                )
+            latency = await self.get_model_loading_time(
+                model_name,
+                model_info[model_name],
+                hardware_info[node_id],
+                node_waiting_time,
+                pinned_memory_pool,
+            )
             if free_gpu >= num_gpus:
                 scheduling_options.append(AllocationPlan(node_id, latency))
             elif self.enable_migration:
@@ -242,6 +227,9 @@ class StorageAwareScheduler(FcfsScheduler):
                     gpu_shortage,
                     node_id,
                     copy.deepcopy(worker_nodes),
+                    copy.deepcopy(model_info),
+                    copy.deepcopy(store_info),
+                    copy.deepcopy(hardware_info),
                 )
                 if migration_plans is not None:
                     migration_latency = max(
@@ -266,13 +254,15 @@ class StorageAwareScheduler(FcfsScheduler):
         gpu_shortage: int,
         source_node_id: int,
         worker_nodes: Mapping,
+        model_info: Mapping,
+        store_info: Mapping,
+        hardware_info: Mapping,
     ) -> Optional[List[MigrationPlan]]:
         released_gpu = 0
         migrated_instances = []
         migration_plans = []
         migratable_instances = {}
         request_routers = {}
-        logger.info(f"Checking migratable instances for model {model_name}")
         async with self.metadata_lock:
             logger.info(f"Checking migratable instances for model {model_name}")
             for target_model_name in self.model_instance:
@@ -309,36 +299,44 @@ class StorageAwareScheduler(FcfsScheduler):
             ):
                 continue
             # Try to migrate this instance to another node
-            target_node_id = None
             for node_id, node_info in worker_nodes.items():
                 if node_id == source_node_id:
                     continue
                 if node_info["free_gpu"] >= instance.num_gpu:
-                    target_node_id = node_id
+                    loading_time = await self.get_model_loading_time(
+                        instance.model_name,
+                        model_info[instance.model_name],
+                        hardware_info[node_id],
+                        store_info[node_id][2],
+                        store_info[node_id][1],
+                    )
+                    alpha = self.model_scheduler_config.get(
+                        "alpha", 0.01
+                    )
+                    beta = self.model_scheduler_config.get(
+                        "beta", 0.1
+                    )
+                    num_current_tokens = instance.num_current_tokens
+                    resuming_time = alpha * num_current_tokens + beta
+                    migration_time = loading_time + resuming_time
+                    node_info["free_gpu"] -= instance.num_gpu
+                    released_gpu += instance.num_gpu
+                    migrated_instances.append(instance_id)
+                    migration_plans.append(
+                        MigrationPlan(
+                            migration_time=migration_time,
+                            target_model=instance.model_name,
+                            source_node_id=source_node_id,
+                            source_instance_id=instance_id,
+                            target_node_id=node_id,
+                        )
+                    )
                     break
 
-            if target_node_id is not None:
-                node_info["free_gpu"] -= instance.num_gpu
-                released_gpu += instance.num_gpu
-                migrated_instances.append(instance_id)
-                migration_plans.append(
-                    MigrationPlan(
-                        migration_time=1
-                        * instance.concurrency,  # FIXME: placeholder
-                        target_model=instance.model_name,
-                        source_node_id=source_node_id,
-                        source_instance_id=instance_id,
-                        target_node_id=target_node_id,
-                    )
-                )
-
             if released_gpu >= gpu_shortage:
-                break
+                return migration_plans
 
-        if released_gpu < gpu_shortage:
-            return None
-        else:
-            return migration_plans
+        return None
 
     async def mark_resource(
         self, model_name: str, instance_id: str, node_id: int
@@ -349,3 +347,39 @@ class StorageAwareScheduler(FcfsScheduler):
                 self.model_instance[model_name] = {}
             self.model_instance[model_name][instance_id] = node_id
         return node_id
+
+    async def set_model_scheduler_config(
+        self, model_name: str, scheduler_config: Mapping
+    ) -> bool:
+        logger.info(f"Setting scheduler config for model {model_name}")
+        async with self.metadata_lock:
+            self.model_scheduler_config[model_name] = scheduler_config
+        return True
+
+    async def get_model_loading_time(
+        self,
+        model_name: str,
+        model_size: int,
+        hardware_info: Mapping,
+        node_waiting_time: float,
+        pinned_memory_pool: Mapping,
+    ) -> float:
+        latency = 0
+        if model_name not in pinned_memory_pool:
+            latency += (
+                node_waiting_time
+                + model_size
+                / hardware_info["disk_bandwidth"]
+            )
+            logger.info(
+                f"Loading model {model_name} takes {latency} seconds"
+            )
+        else:
+            latency += (
+                model_size
+                / hardware_info["pcie_bandwidth"]
+            )
+            logger.info(
+                f"Loading model {model_name} takes {latency} seconds"
+            )
+        return latency

@@ -58,6 +58,7 @@ class InstanceStatus:
     concurrency: int
 
     model_name: Optional[str] = None
+    num_current_tokens: Optional[int] = None
 
 
 @dataclass
