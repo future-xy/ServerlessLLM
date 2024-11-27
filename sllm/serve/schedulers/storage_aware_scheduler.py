@@ -219,10 +219,16 @@ class StorageAwareScheduler(FcfsScheduler):
                     + model_info[model_name]
                     / hardware_info[node_id]["disk_bandwidth"]
                 )
+                logger.info(
+                    f"Loading model {model_name} takes {latency} seconds"
+                )
             else:
                 latency += (
                     model_info[model_name]
                     / hardware_info[node_id]["pcie_bandwidth"]
+                )
+                logger.info(
+                    f"Loading model {model_name} takes {latency} seconds"
                 )
             if free_gpu >= num_gpus:
                 scheduling_options.append(AllocationPlan(node_id, latency))

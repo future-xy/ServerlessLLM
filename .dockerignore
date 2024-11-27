@@ -94,3 +94,9 @@ venv/
 */*.swp
 */*/*.swp
 */*/*/*.swp
+
+# Generated protobuf files
+sllm_store/proto/storage_pb2.py
+sllm_store/proto/storage_pb2_grpc.py
+sllm_store/sllm_store/proto/storage_pb2.py
+sllm_store/sllm_store/proto/storage_pb2_grpc.py

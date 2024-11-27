@@ -9,7 +9,7 @@
         "max_instances": 10
     },
     "placement_config": {
-        "target_nodes": ["1"]
+        "local_disk": ["1"]
     },
     "backend_config": {
         "pretrained_model_name_or_path": "facebook/opt-1.3b",
