@@ -16,9 +16,9 @@
 #  limitations under the License.                                              #
 # ---------------------------------------------------------------------------- #
 
-from abc import ABCMeta
 import asyncio
 import copy
+from abc import ABCMeta
 from dataclasses import dataclass
 from typing import List, Mapping, Optional
 
@@ -153,9 +153,9 @@ class StorageAwareScheduler(FcfsScheduler):
                                     logger.info(
                                         f"Failed to execute migration plan: {migration_plan}"
                                     )
-                                    worker_nodes[target_node_id]["free_gpu"] += (
-                                        num_gpus
-                                    )
+                                    worker_nodes[target_node_id][
+                                        "free_gpu"
+                                    ] += num_gpus
                                 else:
                                     logger.info(
                                         f"Migrated instance {target_model} to node {target_node_id} instance {target_instance_id}"
@@ -310,12 +310,8 @@ class StorageAwareScheduler(FcfsScheduler):
                         store_info[node_id][2],
                         store_info[node_id][1],
                     )
-                    alpha = self.model_scheduler_config.get(
-                        "alpha", 0.01
-                    )
-                    beta = self.model_scheduler_config.get(
-                        "beta", 0.1
-                    )
+                    alpha = self.model_scheduler_config.get("alpha", 0.01)
+                    beta = self.model_scheduler_config.get("beta", 0.1)
                     num_current_tokens = instance.num_current_tokens
                     resuming_time = alpha * num_current_tokens + beta
                     migration_time = loading_time + resuming_time
@@ -367,19 +363,10 @@ class StorageAwareScheduler(FcfsScheduler):
         latency = 0
         if model_name not in pinned_memory_pool:
             latency += (
-                node_waiting_time
-                + model_size
-                / hardware_info["disk_bandwidth"]
+                node_waiting_time + model_size / hardware_info["disk_bandwidth"]
             )
-            logger.info(
-                f"Loading model {model_name} takes {latency} seconds"
-            )
+            logger.info(f"Loading model {model_name} takes {latency} seconds")
         else:
-            latency += (
-                model_size
-                / hardware_info["pcie_bandwidth"]
-            )
-            logger.info(
-                f"Loading model {model_name} takes {latency} seconds"
-            )
+            latency += model_size / hardware_info["pcie_bandwidth"]
+            logger.info(f"Loading model {model_name} takes {latency} seconds")
         return latency

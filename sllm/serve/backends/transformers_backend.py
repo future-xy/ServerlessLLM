@@ -15,9 +15,7 @@
 #  see the license for the specific language governing permissions and         #
 #  limitations under the license.                                              #
 # ---------------------------------------------------------------------------- #
-import gc
 import json
-import logging
 import os
 import threading
 import time
@@ -232,9 +230,11 @@ class TransformersBackend(SllmBackend):
             logger.info("Backend is shutting down. Aborting request")
             output_tokens = self.inf_status.get()
             self.inf_status.delete()
-            return {"preempted": "True",
-                    "current_output": output_tokens,
-                    "completed_tokens": len(output_tokens)-prompt_tokens}
+            return {
+                "preempted": "True",
+                "current_output": output_tokens,
+                "completed_tokens": len(output_tokens) - prompt_tokens,
+            }
         except Exception as e:
             logger.error(f"Failed to generate response: {e}")
             raise e
@@ -245,7 +245,9 @@ class TransformersBackend(SllmBackend):
             total_tokens = len(outputs[0])
             completion_tokens = total_tokens - prompt_tokens
             # FIXME: consider corner case when max_tokens is reached
-            finish_reason = "stop" if completion_tokens < max_tokens else "length"
+            finish_reason = (
+                "stop" if completion_tokens < max_tokens else "length"
+            )
 
             # Generate response compatible with OpenAI's API
             response = {
@@ -256,7 +258,10 @@ class TransformersBackend(SllmBackend):
                 "choices": [
                     {
                         "index": 0,
-                        "message": {"role": "assistant", "content": output_text},
+                        "message": {
+                            "role": "assistant",
+                            "content": output_text,
+                        },
                         "logprobs": None,
                         "finish_reason": finish_reason,
                     }
@@ -324,7 +329,9 @@ class TransformersBackend(SllmBackend):
             self.past_key_values = output.past_key_values
         logger.info(f"Resumed {len(self.past_key_values[0][0][0][0])} tokens")
 
-    def resume_generate(self, request_data: Optional[Dict[str, Any]], current_output):
+    def resume_generate(
+        self, request_data: Optional[Dict[str, Any]], current_output
+    ):
         with self.status_lock:
             if self.status != BackendStatus.RUNNING:
                 return {"error": "Model not initialized"}
@@ -350,7 +357,9 @@ class TransformersBackend(SllmBackend):
         # Generate response
         try:
             with torch.no_grad():
-                current_output = torch.tensor(current_output).reshape(1, -1).to("cuda")
+                current_output = (
+                    torch.tensor(current_output).reshape(1, -1).to("cuda")
+                )
                 outputs = self.model.generate(
                     current_output,
                     past_key_values=self.past_key_values,
@@ -371,7 +380,9 @@ class TransformersBackend(SllmBackend):
             total_tokens = len(outputs[0])
             completion_tokens = total_tokens - prompt_tokens
             # FIXME: consider corner case when max_tokens is reached
-            finish_reason = "stop" if completion_tokens < max_tokens else "length"
+            finish_reason = (
+                "stop" if completion_tokens < max_tokens else "length"
+            )
 
             # Generate response compatible with OpenAI's API
             response = {
@@ -382,7 +393,10 @@ class TransformersBackend(SllmBackend):
                 "choices": [
                     {
                         "index": 0,
-                        "message": {"role": "assistant", "content": output_text},
+                        "message": {
+                            "role": "assistant",
+                            "content": output_text,
+                        },
                         "logprobs": None,
                         "finish_reason": finish_reason,
                     }

@@ -64,7 +64,12 @@ def main():
             controller_cls = ray.remote(SllmController)
             controller = controller_cls.options(
                 name="controller", num_cpus=1, resources={"control_node": 0.1}
-            ).remote({"enable_storage_aware": args.enable_storage_aware, "enable_migration": args.enable_migration})
+            ).remote(
+                {
+                    "enable_storage_aware": args.enable_storage_aware,
+                    "enable_migration": args.enable_migration,
+                }
+            )
             ray.get(controller.start.remote())
 
             uvicorn.run(app, host=args.host, port=args.port)

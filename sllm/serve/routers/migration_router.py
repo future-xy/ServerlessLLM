@@ -77,12 +77,14 @@ class MigrationRouter(RoundRobinRouter):
                     logger.error(f"No target instance found for {instance_id}")
                     return {"error": "No target instance found"}
                 target_instance = self.ready_instances[target_instance_id]
-                logger.info(f"Resuming request on target instance: {target_instance_id}")
+                logger.info(
+                    f"Resuming request on target instance: {target_instance_id}"
+                )
                 if "max_tokens" in request_data:
                     request_data["max_tokens"] -= result["completed_tokens"]
                 result = await target_instance.backend_instance.resume_generate.remote(
                     request_data=request_data,
-                    current_output=result["current_output"]
+                    current_output=result["current_output"],
                 )
 
         elif action == "encode":
@@ -96,7 +98,7 @@ class MigrationRouter(RoundRobinRouter):
         async with self.request_count_lock:
             self.request_count -= 1
         return result
-    
+
     async def execute_migration_plan(self, migration_plan):
         logger.info(f"Executing migration plan: {migration_plan}")
         source_instance_id = migration_plan.source_instance_id
@@ -159,9 +161,7 @@ class MigrationRouter(RoundRobinRouter):
             await target_instance.backend_instance.shutdown.remote()
             ray.kill(target_instance.backend_instance)
             return None
-        source_instance = self.ready_instances[
-            source_instance_id
-        ]
+        source_instance = self.ready_instances[source_instance_id]
         migration_iter = 0
         n_previous_tokens = 0
         while True:
@@ -169,7 +169,9 @@ class MigrationRouter(RoundRobinRouter):
             current_tokens = ray.get(
                 source_instance.backend_instance.get_current_tokens.remote()
             )
-            logger.info(f"Number of tokens: {current_tokens}, delta: {len(current_tokens) - n_previous_tokens}")
+            logger.info(
+                f"Number of tokens: {current_tokens}, delta: {len(current_tokens) - n_previous_tokens}"
+            )
             n_delta_tokens = len(current_tokens) - n_previous_tokens
             n_previous_tokens = len(current_tokens)
             if not current_tokens or n_delta_tokens <= 10:
@@ -178,11 +180,13 @@ class MigrationRouter(RoundRobinRouter):
                     f"{None if not current_tokens else len(current_tokens)} tokens"
                 )
                 break
-            ray.get(target_instance.backend_instance.resume_kv_cache.remote(current_tokens))
-            migration_iter += 1
-            logger.info(
-                f"Migration iteration {migration_iter} completed"
+            ray.get(
+                target_instance.backend_instance.resume_kv_cache.remote(
+                    current_tokens
+                )
             )
+            migration_iter += 1
+            logger.info(f"Migration iteration {migration_iter} completed")
 
         logger.info(f"Migrated instance {source_instance_id} to {instance_id}")
         async with self.instance_management_lock:

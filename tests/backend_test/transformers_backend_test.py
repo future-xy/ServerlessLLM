@@ -190,11 +190,15 @@ def test_get_current_tokens(transformers_backend, model, tokenizer):
             "max_tokens": 128,
         }
         import threading
+
         # Create a thread to call the generate method
-        thread = threading.Thread(target=transformers_backend.generate, args=(input,))
+        thread = threading.Thread(
+            target=transformers_backend.generate, args=(input,)
+        )
         thread.start()
         # Sleep for 1 second to allow the thread to start
         import time
+
         time.sleep(1)
         # Get the current tokens
         current_tokens = transformers_backend.get_current_tokens()
@@ -223,17 +227,21 @@ def test_shutdown(transformers_backend, model, tokenizer):
             "max_tokens": 128,
         }
         import threading
+
         # Create a thread to call the generate method
-        thread = threading.Thread(target=transformers_backend.generate, args=(input,))
+        thread = threading.Thread(
+            target=transformers_backend.generate, args=(input,)
+        )
         thread.start()
         # Sleep for 1 second to allow the thread to start
         import time
+
         time.sleep(1)
         # Shutdown the backend
         transformers_backend.shutdown()
         thread.join()
 
-        
+
 def test_encode(encoder_backend, encoder, encoder_tokenizer):
     with patch(
         "sllm.serve.backends.transformers_backend.load_model",

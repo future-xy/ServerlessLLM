@@ -61,9 +61,11 @@ class SllmLocalStore:
         # Start loading loop
         self.loader = asyncio.create_task(self.loading_loop())
 
-        logger.info(f"Initalized local store for node {self.node_id}"
-                    f" with {self.pinned_memory_pool_chunks} chunks"
-                    f" (chunk size: {chunk_size})")
+        logger.info(
+            f"Initalized local store for node {self.node_id}"
+            f" with {self.pinned_memory_pool_chunks} chunks"
+            f" (chunk size: {chunk_size})"
+        )
 
     async def register_model(
         self, model_name: str, backend: str, backend_config
@@ -202,6 +204,7 @@ class SllmLocalStore:
     async def _get_model_path(self, model_name, backend):
         return os.path.join(backend, model_name)
 
+
 # @ray.remote(num_cpus=1, resources={"control_node": 0.1})
 class StoreManager:
     def __init__(self):
@@ -281,7 +284,11 @@ class StoreManager:
                             )
                         mem_pool_size = local_server_config["mem_pool_size"]
                         self.local_servers[node_id] = SllmLocalStore(
-                            node_id, sllm_store_client, mem_pool_size, chunk_size, self.hardware_info[node_id]
+                            node_id,
+                            sllm_store_client,
+                            mem_pool_size,
+                            chunk_size,
+                            self.hardware_info[node_id],
                         )
                         uninitialized_nodes.remove(node_id)
                         logger.info(
@@ -387,7 +394,7 @@ class StoreManager:
                         f"Invalid target nodes {memory_pool}, worker nodes: {worker_node_info}"  # noqa: E501
                     )
                     return
-            
+
             logger.info(
                 f"Downloading model {pretrained_model_name} to nodes {local_disk}"  # noqa: E501
             )
