@@ -208,7 +208,7 @@ class StorageAwareScheduler(FcfsScheduler):
                 # slower than network bandwidth and difficult to estimate.
                 # So we just consider local checkpoints for now.
                 continue
-            latency = await self.get_model_loading_time(
+            latency = self._get_model_loading_time(
                 model_name,
                 model_info[model_name],
                 hardware_info[node_id],
@@ -266,6 +266,7 @@ class StorageAwareScheduler(FcfsScheduler):
         async with self.metadata_lock:
             logger.info(f"Checking migratable instances for model {model_name}")
             for target_model_name in self.model_instance:
+                # Skip the instances that is already running the model
                 if target_model_name == model_name:
                     continue
                 for instance_id, node_id in self.model_instance[
@@ -292,18 +293,12 @@ class StorageAwareScheduler(FcfsScheduler):
                             migratable_instances[instance_id] = instance_status
         logger.info(f"Migratable instances: {migratable_instances}")
         for instance_id, instance in migratable_instances.items():
-            # Skip the instance that is already running the model
-            if (
-                instance.model_name == model_name
-                or instance_id in migrated_instances
-            ):
-                continue
             # Try to migrate this instance to another node
             for node_id, node_info in worker_nodes.items():
                 if node_id == source_node_id:
                     continue
                 if node_info["free_gpu"] >= instance.num_gpu:
-                    loading_time = await self.get_model_loading_time(
+                    loading_time = self._get_model_loading_time(
                         instance.model_name,
                         model_info[instance.model_name],
                         hardware_info[node_id],
@@ -315,8 +310,6 @@ class StorageAwareScheduler(FcfsScheduler):
                     num_current_tokens = instance.num_current_tokens
                     resuming_time = alpha * num_current_tokens + beta
                     migration_time = loading_time + resuming_time
-                    node_info["free_gpu"] -= instance.num_gpu
-                    released_gpu += instance.num_gpu
                     migrated_instances.append(instance_id)
                     migration_plans.append(
                         MigrationPlan(
@@ -327,6 +320,9 @@ class StorageAwareScheduler(FcfsScheduler):
                             target_node_id=node_id,
                         )
                     )
+                    store_info[node_id][2] += loading_time
+                    node_info["free_gpu"] -= instance.num_gpu
+                    released_gpu += instance.num_gpu
                     break
 
             if released_gpu >= gpu_shortage:
@@ -352,7 +348,7 @@ class StorageAwareScheduler(FcfsScheduler):
             self.model_scheduler_config[model_name] = scheduler_config
         return True
 
-    async def get_model_loading_time(
+    def _get_model_loading_time(
         self,
         model_name: str,
         model_size: int,
