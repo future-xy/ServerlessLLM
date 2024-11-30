@@ -40,7 +40,9 @@ class MigrationPlan:
 class MigrationPlans:
     def __init__(self):
         # self.evictedInstances = []  # List to store the instances that are evicted
-        self.total_latency = float("inf")  # Initialize migration_latency to infinity
+        self.total_latency = float(
+            "inf"
+        )  # Initialize migration_latency to infinity
         self.evictedGPUs = 0  # Counter for the total num_gpu freed
         self.plans = []
 
@@ -303,9 +305,15 @@ class StorageAwareScheduler(FcfsScheduler):
                             logger.info(
                                 f"Instance {instance_id} status: {instance_status}"
                             )
-                            alpha = self.model_scheduler_config.get(target_model_name, {}).get("alpha", 0.01)
-                            beta = self.model_scheduler_config.get(target_model_name, {}).get("beta", 0.1)
-                            num_current_tokens = instance_status.num_current_tokens
+                            alpha = self.model_scheduler_config.get(
+                                target_model_name, {}
+                            ).get("alpha", 0.01)
+                            beta = self.model_scheduler_config.get(
+                                target_model_name, {}
+                            ).get("beta", 0.1)
+                            num_current_tokens = (
+                                instance_status.num_current_tokens
+                            )
                             resuming_latency = alpha * num_current_tokens + beta
                             instance_status.resuming_latency = resuming_latency
                             migratable_instances[instance_id] = instance_status
@@ -330,11 +338,11 @@ class StorageAwareScheduler(FcfsScheduler):
                         target_node_id=node_id, source_instance=instance
                     )
                     store_info[node_id][2] += loading_time
-                    logger.info(
-                        store_info[node_id][2]
-                    )
+                    logger.info(store_info[node_id][2])
                     node_info["free_gpu"] -= instance.num_gpu
-                    migration_plans.append(plan, migration_plans.total_latency + migration_latency)
+                    migration_plans.append(
+                        plan, migration_plans.total_latency + migration_latency
+                    )
                     logger.info(
                         f"Migration plan for instance {instance_id} of model {instance.model_name}: {plan}"
                     )
@@ -379,8 +387,12 @@ class StorageAwareScheduler(FcfsScheduler):
             latency += (
                 node_waiting_time + model_size / hardware_info["disk_bandwidth"]
             )
-            logger.info(f"Loading model {model_name} will take {latency} seconds")
+            logger.info(
+                f"Loading model {model_name} will take {latency} seconds"
+            )
         else:
             latency += model_size / hardware_info["pcie_bandwidth"]
-            logger.info(f"Loading model {model_name} will take {latency} seconds")
+            logger.info(
+                f"Loading model {model_name} will take {latency} seconds"
+            )
         return latency
