@@ -320,12 +320,24 @@ class StorageAwareScheduler(FcfsScheduler):
                             target_node_id=node_id,
                         )
                     )
-                    store_info[node_id][2] += loading_time
+                    try:
+                        store_info[node_id][2] += loading_time
+                    except Exception as e:
+                        logger.error(e)
+                    logger.info(
+                        store_info[node_id][2], loading_time
+                    )
                     node_info["free_gpu"] -= instance.num_gpu
                     released_gpu += instance.num_gpu
+                    logger.info(
+                        f"Migration plan for instance {instance_id} of model {instance.model_name}: {migration_plans[-1]}"
+                    )
                     break
 
             if released_gpu >= gpu_shortage:
+                logger.info(
+                    f"Found enough migration plans for model {model_name}"
+                )
                 return migration_plans
 
         return None
@@ -361,8 +373,8 @@ class StorageAwareScheduler(FcfsScheduler):
             latency += (
                 node_waiting_time + model_size / hardware_info["disk_bandwidth"]
             )
-            logger.info(f"Loading model {model_name} takes {latency} seconds")
+            logger.info(f"Loading model {model_name} will take {latency} seconds")
         else:
             latency += model_size / hardware_info["pcie_bandwidth"]
-            logger.info(f"Loading model {model_name} takes {latency} seconds")
+            logger.info(f"Loading model {model_name} will take {latency} seconds")
         return latency

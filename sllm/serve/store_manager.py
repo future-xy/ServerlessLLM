@@ -97,7 +97,7 @@ class SllmLocalStore:
                 delta_time = self.io_queue[-1]["estimated_time"] - time.time()
                 if delta_time < 0:
                     delta_time = 0
-            return self.disk_models, self.pinned_memory_pool, delta_time
+            return [self.disk_models, self.pinned_memory_pool, delta_time]
 
     async def load_to_host(self, model_name: str) -> bool:
         async with self.lock:
