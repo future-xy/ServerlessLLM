@@ -42,19 +42,81 @@ class MigrationPlans:
         # self.evictedInstances = []  # List to store the instances that are evicted
         self.total_latency = float(
             "inf"
-        )  # Initialize migration_latency to infinity
+        )  # Initialize total_latency to infinity
         self.evictedGPUs = 0  # Counter for the total num_gpu freed
         self.plans = []
 
     def append(self, plan: MigrationPlan, total_latency: float):
-        # Update the migration_latency estimate for the current plan
-        # self.migration_latency = migration_latency
+        # Update the total_latency estimate for the current plan
         self.total_latency = total_latency
-        # Add a instance to the Migration plan
-        # self.evictedInstances.append(instance)
         # Update the total num_gpu freed
         self.evictedGPUs += plan.source_instance.num_gpu
+        # Add a instance to the Migration plan
         self.plans.append(plan)
+
+
+def MigrationPlanner(
+    migratable_instances: List[InstanceStatus], gpu_shortage: int
+) -> Optional[MigrationPlans]:
+    numInstances = len(
+        migratable_instances
+    )  # Number of instances currently running
+    gpu_shortage = int(gpu_shortage)
+    logger.info(f"Number of instances: {numInstances}, Required GPUs: {gpu_shortage}")
+    # Initialize the DP table with MigrationPlans objects
+    dp = [
+        [MigrationPlans() for _ in range(gpu_shortage + 1)]
+        for _ in range(numInstances + 1)
+    ]
+    dp[0][0].total_latency = 0
+    logger.info(f"Number of instances: {numInstances}")
+
+    # Iterate over all instances and GPU capacities
+    for i in range(1, numInstances + 1):
+        logger.info(f"Checking instance {i}")
+        for j in range(gpu_shortage + 1):
+            logger.info(f"Checking GPU capacity {j}")
+            current_instance = migratable_instances[i - 1]
+            # GPU requirement for the current instance
+            n_gpus = current_instance.num_gpu
+            logger.info(f"GPU requirement for instance {i}: {n_gpus}")
+            # Check if the current instance can fit into the current GPU capacity
+            if j >= n_gpus:
+                # Calculate total_latency when including the current instance
+                logger.info(f"Instance {i} can fit into GPU capacity {j}")
+                migration_latency = (
+                    current_instance.resuming_latency + 1
+                )  # FIXME: get loading time
+                plan = MigrationPlan(
+                    target_node_id='1', source_instance=current_instance
+                )
+                total_latency = (
+                    migration_latency + dp[i - 1][j - n_gpus].total_latency
+                )
+                logger.info(
+                    f"Total latency for instance {i} with {j} GPUs: {total_latency}"
+                )
+                if total_latency < dp[i - 1][j].total_latency:
+                    # Copy the previous plan and include the current instance
+                    dp[i][j] = copy.deepcopy(dp[i - 1][j - n_gpus])
+                    dp[i][j].append(plan, total_latency)
+                else:
+                    # Copy the previous plan without including the current instance
+                    dp[i][j] = copy.deepcopy(dp[i - 1][j])
+            else:
+                logger.info(f"Instance {i} cannot fit into GPU capacity {j}")
+                # If the instance cannot fit, carry forward the previous plan
+                dp[i][j] = copy.deepcopy(dp[i - 1][j])
+
+    # Return the optimal Migration plans
+    minLatency = float("inf")
+    optimal_plans = None
+    for plans in dp[numInstances]:
+        logger.info(f"Total latency: {plans.total_latency}")
+        if plans.total_latency < minLatency and plans.evictedGPUs >= gpu_shortage:
+            minLatency = plans.total_latency
+            optimal_plans = plans
+    return optimal_plans
 
 
 @dataclass
@@ -160,12 +222,24 @@ class StorageAwareScheduler(FcfsScheduler):
                                     f"Executing migration plan: {migration_plan}"
                                 )
                                 target_node_id = migration_plan.target_node_id
+                                logger.info(
+                                    f"Target node {target_node_id} for model {target_model}"
+                                )
                                 worker_nodes[target_node_id]["free_gpu"] -= (
                                     num_gpus
                                 )
-                                target_instance_id = await target_request_router.execute_migration_plan.remote(
-                                    migration_plan
+                                logger.info(
+                                    f"Free GPU on node {target_node_id}: {worker_nodes[target_node_id]['free_gpu']}"
                                 )
+                                try:
+                                    target_instance_id = await target_request_router.execute_migration_plan.remote(
+                                        migration_plan
+                                    )
+                                except Exception as e:
+                                    logger.error(
+                                        f"Failed to execute migration plan: {e}"
+                                    )
+                                    target_instance_id = None
                                 if target_instance_id is None:
                                     logger.info(
                                         f"Failed to execute migration plan: {migration_plan}"
@@ -256,9 +330,9 @@ class StorageAwareScheduler(FcfsScheduler):
                             migration_plans=migration_plans,
                         )
                     )
-                logger.info(
-                    f"Migration plans for model {model_name}: {migration_plans}"
-                )
+                    logger.info(
+                        f"Migration plans for model {model_name}: {migration_plans}"
+                    )
             else:
                 logger.info(
                     f"Node {node_id} does not have enough GPU and migration is disabled"
@@ -275,8 +349,7 @@ class StorageAwareScheduler(FcfsScheduler):
         store_info: Mapping,
         hardware_info: Mapping,
     ) -> Optional[MigrationPlans]:
-        migration_plans = MigrationPlans()
-        migratable_instances = {}
+        migratable_instances = []
         request_routers = {}
         async with self.metadata_lock:
             logger.info(f"Checking migratable instances for model {model_name}")
@@ -316,45 +389,58 @@ class StorageAwareScheduler(FcfsScheduler):
                             )
                             resuming_latency = alpha * num_current_tokens + beta
                             instance_status.resuming_latency = resuming_latency
-                            migratable_instances[instance_id] = instance_status
+                            migratable_instances.append(instance_status)
 
         logger.info(f"Migratable instances: {migratable_instances}")
-        for instance_id, instance in migratable_instances.items():
-            # Try to migrate this instance to another node
-            for node_id, node_info in worker_nodes.items():
-                if node_id == source_node_id:
-                    continue
-                if node_info["free_gpu"] >= instance.num_gpu:
-                    loading_time = self._get_model_loading_time(
-                        instance.model_name,
-                        model_info[instance.model_name],
-                        hardware_info[node_id],
-                        store_info[node_id][2],
-                        store_info[node_id][1],
-                    )
-                    resuming_latency = instance.resuming_latency
-                    migration_latency = loading_time + resuming_latency
-                    plan = MigrationPlan(
-                        target_node_id=node_id, source_instance=instance
-                    )
-                    store_info[node_id][2] += loading_time
-                    logger.info(store_info[node_id][2])
-                    node_info["free_gpu"] -= instance.num_gpu
-                    migration_plans.append(
-                        plan, migration_plans.total_latency + migration_latency
-                    )
-                    logger.info(
-                        f"Migration plan for instance {instance_id} of model {instance.model_name}: {plan}"
-                    )
-                    break
 
-            if migration_plans.evictedGPUs >= gpu_shortage:
-                logger.info(
-                    f"Found enough migration plans for model {model_name}"
-                )
-                return migration_plans
+        if not migratable_instances:
+            return None
 
-        return None
+        try:
+            migration_plans = MigrationPlanner(
+                migratable_instances, gpu_shortage
+            )
+            logger.info(f"Migration plans: {migration_plans}")
+            return migration_plans
+        except Exception as e:
+            logger.error(f"Failed to get migration plans: {e}")
+            return None
+        # for instance_id, instance in migratable_instances.items():
+        #     # Try to migrate this instance to another node
+        #     for node_id, node_info in worker_nodes.items():
+        #         if node_id == source_node_id:
+        #             continue
+        #         if node_info["free_gpu"] >= instance.num_gpu:
+        #             loading_time = self._get_model_loading_time(
+        #                 instance.model_name,
+        #                 model_info[instance.model_name],
+        #                 hardware_info[node_id],
+        #                 store_info[node_id][2],
+        #                 store_info[node_id][1],
+        #             )
+        #             resuming_latency = instance.resuming_latency
+        #             migration_latency = loading_time + resuming_latency
+        #             plan = MigrationPlan(
+        #                 target_node_id=node_id, source_instance=instance
+        #             )
+        #             store_info[node_id][2] += loading_time
+        #             logger.info(store_info[node_id][2])
+        #             node_info["free_gpu"] -= instance.num_gpu
+        #             migration_plans.append(
+        #                 plan, migration_plans.total_latency + migration_latency
+        #             )
+        #             logger.info(
+        #                 f"Migration plan for instance {instance_id} of model {instance.model_name}: {plan}"
+        #             )
+        #             break
+
+        #     if migration_plans.evictedGPUs >= gpu_shortage:
+        #         logger.info(
+        #             f"Found enough migration plans for model {model_name}"
+        #         )
+        #         return migration_plans
+
+        # return None
 
     async def mark_resource(
         self, model_name: str, instance_id: str, node_id: int

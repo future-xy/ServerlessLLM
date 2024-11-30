@@ -54,6 +54,7 @@ COPY sllm_store/requirements.txt /app/sllm_store/requirements.txt
 COPY sllm_store/README.md /app/sllm_store/README.md
 COPY sllm_store/proto/storage.proto /app/sllm_store/proto/storage.proto
 RUN cd sllm_store && \
+  rm -f sllm_store/proto/*.py && \
   pip install -r requirements.txt && \
   pip install setuptools wheel  && \
   python setup.py sdist bdist_wheel
