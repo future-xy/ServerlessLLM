@@ -21,8 +21,8 @@ def collect_all_info():
     Collect all hardware information and return as a dictionary.
     """
     hardware_info = {}
-    hardware_info["host_size"] = get_memory_info()
-    hardware_info["pcie_bandwidth"] = 25_000_000_000  # 25 GB/s for PCIe 4.0
+    # TODO: collect pcie_bandwidth
+    hardware_info["pcie_bandwidth"] = 25000000000  # 25 GB/s, PCIe 4.0 x16
     hardware_info["disk_size"] = get_disk_info()
     write_bw, read_bw = benchmark_disk_bandwidth()
     hardware_info["disk_bandwidth"] = (
@@ -37,20 +37,6 @@ def collect_all_info():
     hardware_info["GPUs_info"] = get_gpu_info()
     print(hardware_info)
     return hardware_info
-
-
-def get_memory_info():
-    """
-    Retrieves total system memory.
-    Returns:
-        str: Total memory in B
-    """
-    try:
-        mem = psutil.virtual_memory()
-        return mem.total
-    except Exception as e:
-        logger.error(f"Failed to retrieve memory info: {e}")
-        return "N/A"
 
 
 def get_disk_info():
