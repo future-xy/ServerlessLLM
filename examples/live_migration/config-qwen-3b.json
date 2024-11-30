@@ -8,6 +8,9 @@
         "min_instances": 0,
         "max_instances": 10
     },
+    "router_config": {
+        "migration_delta": 20
+    },
     "placement_config": {
         "local_disk": ["0", "1"],
         "memory_pool": ["0", "1"]

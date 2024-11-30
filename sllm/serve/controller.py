@@ -96,6 +96,7 @@ class SllmController:
             logger.error(f"Backend not specified for model {model_name}")
             return
         backend_config = model_config.get("backend_config", {})
+        router_config = model_config.get("router_config", {})
         auto_scaling_config = model_config.get("auto_scaling_config", None)
         async with self.metadata_lock:
             if model_name in self.registered_models:
@@ -118,7 +119,7 @@ class SllmController:
             namespace="models",
             num_cpus=1,
             resources={"control_node": 0.1},
-        ).remote(model_name, resource_requirements, backend, backend_config)
+        ).remote(model_name, resource_requirements, backend, backend_config, router_config)
 
         async with self.metadata_lock:
             if model_name in self.request_routers:

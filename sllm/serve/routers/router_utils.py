@@ -35,6 +35,7 @@ class SllmRouter(ABC):
         resource_requirements: Dict[str, int],
         backend: str,
         backend_config: Dict,
+        router_config: Dict,
     ) -> None:
         pass
 

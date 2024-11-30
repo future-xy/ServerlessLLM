@@ -61,11 +61,13 @@ class RoundRobinRouter(SllmRouter):
         resource_requirements: Dict[str, int],
         backend: str,
         backend_config: Dict,
+        router_config: Dict,
     ) -> None:
         self.model_name = model_name
         self.resource_requirements = resource_requirements
         self.backend = backend
         self.backend_config = backend_config
+        self.router_config = router_config
 
         self.loop = asyncio.get_running_loop()
         self.request_queue = asyncio.Queue()  # type:ignore

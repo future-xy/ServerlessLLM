@@ -38,11 +38,13 @@ class MigrationRouter(RoundRobinRouter):
         resource_requirements: Dict[str, int],
         backend: str,
         backend_config: Dict,
+        router_config: Dict,
     ) -> None:
         super().__init__(
-            model_name, resource_requirements, backend, backend_config
+            model_name, resource_requirements, backend, backend_config, router_config
         )
         self.migration_record = {}
+        self.migration_delta = self.router_config.get("migration_delta", 20)
 
     async def inference(self, request_data: dict, action: str):
         async with self.running_lock:
@@ -175,7 +177,7 @@ class MigrationRouter(RoundRobinRouter):
             )
             n_delta_tokens = len(current_tokens) - n_previous_tokens
             n_previous_tokens = len(current_tokens)
-            if not current_tokens or n_delta_tokens <= 10:
+            if not current_tokens or n_delta_tokens <= self.migration_delta:
                 logger.info(
                     "Migration completed:"
                     f"{None if not current_tokens else len(current_tokens)} tokens"
