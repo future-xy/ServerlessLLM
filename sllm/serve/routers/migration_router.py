@@ -172,10 +172,10 @@ class MigrationRouter(RoundRobinRouter):
             current_tokens = ray.get(
                 source_instance.backend_instance.get_current_tokens.remote()
             )
-            logger.info(
-                f"Number of tokens: {current_tokens}, delta: {len(current_tokens) - n_previous_tokens}"
-            )
             n_delta_tokens = len(current_tokens) - n_previous_tokens
+            logger.info(
+                f"Number of tokens: {current_tokens}, delta: {n_delta_tokens}"
+            )
             n_previous_tokens = len(current_tokens)
             if not current_tokens or n_delta_tokens <= self.migration_delta:
                 logger.info(
@@ -194,8 +194,12 @@ class MigrationRouter(RoundRobinRouter):
         logger.info(f"Migrated instance {source_instance_id} to {instance_id}")
         async with self.instance_management_lock:
             if source_instance_id not in self.ready_instances:
+                # source_instance has been removed
                 logger.error(f"Instance {instance_id} not found")
-                return
+                target_instance.ready = False
+                await target_instance.backend_instance.shutdown.remote()
+                ray.kill(target_instance.backend_instance)
+                return None
             _ = self.ready_instances.pop(source_instance_id)
             async with source_instance.lock:
                 source_instance.status = False
