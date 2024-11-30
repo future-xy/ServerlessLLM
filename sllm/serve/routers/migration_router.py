@@ -101,7 +101,8 @@ class MigrationRouter(RoundRobinRouter):
 
     async def execute_migration_plan(self, migration_plan):
         logger.info(f"Executing migration plan: {migration_plan}")
-        source_instance_id = migration_plan.source_instance_id
+        source_instance = migration_plan.source_instance
+        source_instance_id = source_instance.instance_id
         target_node_id = migration_plan.target_node_id
         # start the target_instance on the target node
         startup_config = {
