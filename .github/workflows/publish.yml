@@ -14,7 +14,7 @@ jobs:
   release:
     # Retrieve tag and create release
     name: Create Release
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
@@ -44,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-          os: ['ubuntu-20.04']
+          os: ['ubuntu-latest']
           python-version: ['3.10']
           pytorch-version: ['2.3.0']  # Must be the most recent version that meets requirements-cuda.txt.
           cuda-version: ['12.3']
@@ -118,7 +118,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-          os: ['ubuntu-20.04']
+          os: ['ubuntu-latest']
           python-version: ['3.10']
           pytorch-version: ['2.3.0']  # Must be the most recent version that meets requirements-cuda.txt.
           cuda-version: ['12.3']
@@ -192,7 +192,7 @@ jobs:
 
   build_and_push_docker:
     name: Build and Push Docker Images
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     needs: release
     steps:
       - name: Checkout
