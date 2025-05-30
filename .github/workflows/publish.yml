@@ -104,7 +104,7 @@ jobs:
           asset_content_type: application/*
 
       - name: Upload wheel as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sllm-wheel
           path: ./dist/${{ env.wheel_name }}
@@ -193,7 +193,7 @@ jobs:
           mv dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
 
       - name: Upload wheel as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: sllm-store-wheel
           path: ./sllm_store/dist/${{ env.asset_name }}
