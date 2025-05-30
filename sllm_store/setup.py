@@ -46,15 +46,19 @@ ROOT_DIR = os.path.dirname(__file__)
 
 def check_nvcc_installed(cuda_home: str) -> None:
     """Check if nvcc (NVIDIA CUDA compiler) is installed."""
+    nvcc_path = cuda_home + "/bin/nvcc"
     try:
-        _ = subprocess.check_output(
-            [cuda_home + "/bin/nvcc", "-V"], universal_newlines=True
+        output = subprocess.check_output(
+            [nvcc_path, "-V"], universal_newlines=True
         )
-    except Exception:
+        print(f"nvcc found at {nvcc_path}, version info: {output.strip()}")
+    except Exception as e:
+        print(f"Failed to run nvcc at {nvcc_path}, original error: {e}")
         raise RuntimeError(
-            "nvcc is not installed or not found in your PATH. "
-            "Please ensure that the CUDA toolkit is installed and nvcc is available in your PATH."  # noqa: E501
-        ) from None
+            f"nvcc is not installed or not found at {nvcc_path}. "
+            "Please ensure that the CUDA toolkit is installed and nvcc is available in your PATH. "
+            f"Original error: {e}"
+        )
 
 
 def check_hipcc_installed(rocm_home: str) -> None:
