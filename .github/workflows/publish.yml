@@ -103,12 +103,21 @@ jobs:
           asset_name: ${{ env.asset_name }}
           asset_content_type: application/*
 
-
-      - name: Publish package
-        uses: pypa/gh-action-pypi-publish@release/v1.8
+      - name: Upload wheel as artifact
+        uses: actions/upload-artifact@v3
         with:
-          password: ${{ secrets.SLLM_PYPI }}
-          skip-existing: true
+          name: sllm-wheel
+          path: ./dist/${{ env.wheel_name }}
+
+      # - name: Publish package
+      #   # Only publish to PyPI if we have the secret (i.e., not on forks)
+      #   if: ${{ env.SLLM_PYPI != '' }}
+      #   uses: pypa/gh-action-pypi-publish@release/v1.8
+      #   env:
+      #     SLLM_PYPI: ${{ secrets.SLLM_PYPI }}
+      #   with:
+      #     password: ${{ secrets.SLLM_PYPI }}
+      #     skip-existing: true
 
   sllm-store:
     name: Build Wheel For ServerlessLLM Store
@@ -183,75 +192,19 @@ jobs:
         run: |
           mv dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
 
-      - name: Publish package
-        uses: pypa/gh-action-pypi-publish@release/v1.8
+      - name: Upload wheel as artifact
+        uses: actions/upload-artifact@v3
         with:
-          packages-dir: ./sllm_store/dist/
-          password: ${{ secrets.SLLM_STORE_PYPI }}
-          skip-existing: true
+          name: sllm-store-wheel
+          path: ./sllm_store/dist/${{ env.asset_name }}
 
-  build_and_push_docker:
-    name: Build and Push Docker Images
-    runs-on: ubuntu-latest
-    needs: release
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Free Up GitHub Actions Ubuntu Runner Disk Space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          # This might remove tools that are actually needed, if set to "true" but frees about 6 GB
-          tool-cache: false
-          # All of these default to true, but feel free to set to "false" if necessary for your workflow
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          swap-storage: true
-
-      - name: Free Up GitHub Actions Ubuntu Runner Disk Space
-        shell: bash
-        run: |
-          bash -x .github/workflows/scripts/free-disk-space.sh
-
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Extract tag info
-        shell: bash
-        run: |
-          echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-
-      - name: Build and Push Head Docker Image
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: |
-            serverlessllm/sllm:${{ env.RELEASE_TAG }}
-            serverlessllm/sllm:latest
-          build-args: |
-            VERSION=${{ env.RELEASE_TAG }}
-
-      # - name: Build and Push Worker Docker Image
-      #   uses: docker/build-push-action@v4
+      # - name: Publish package
+      #   # Only publish to PyPI if we have the secret (i.e., not on forks)
+      #   if: ${{ env.SLLM_STORE_PYPI != '' }}
+      #   uses: pypa/gh-action-pypi-publish@release/v1.8
+      #   env:
+      #     SLLM_STORE_PYPI: ${{ secrets.SLLM_STORE_PYPI }}
       #   with:
-      #     context: .
-      #     file: ./Dockerfile.worker
-      #     push: true
-      #     tags: |
-      #       serverlessllm/sllm-worker:${{ env.RELEASE_TAG }}
-      #       serverlessllm/sllm-worker:latest
-      #     build-args: |
-      #       VERSION=${{ env.RELEASE_TAG }}
+      #     packages-dir: ./sllm_store/dist/
+      #     password: ${{ secrets.SLLM_STORE_PYPI }}
+      #     skip-existing: true
