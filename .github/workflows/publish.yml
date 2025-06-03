@@ -111,50 +111,44 @@ jobs:
 
   sllm-store:
     name: Build Wheel For ServerlessLLM Store
-    runs-on: [self-hosted, linux]  # Use self-hosted runner with GPU
+    runs-on: [self-hosted, linux, gpu]  # Use self-hosted runner with GPU
     needs: release
+    container:
+      image: nvidia/cuda:12.3.0-devel-ubuntu20.04
+      options: --gpus all
 
     strategy:
       fail-fast: false
       matrix:
           python-version: ['3.10']
           pytorch-version: ['2.3.0']  # Must be the most recent version that meets requirements-cuda.txt.
-          cuda-version: ['12.3']
+          cuda-version: ['12.3.0']
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build sllm-store wheel using Docker
+      - name: Build sllm-store wheel
+        working-directory: sllm_store
+        env:
+          CMAKE_BUILD_TYPE: Release
+          TORCH_CUDA_ARCH_LIST: "8.0 8.6 8.9 9.0"
         run: |
-          # Build the Docker image with multi-stage build
-          docker build \
-            --target output \
-            --build-arg CUDA_VERSION=${{ matrix.cuda-version }} \
-            --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
-            --build-arg PYTORCH_VERSION=${{ matrix.pytorch-version }} \
-            -f sllm_store/Dockerfile.builder \
-            -t sllm-store-builder:${{ matrix.cuda-version }} \
-            .
+          # Install build dependencies
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements-build.txt
+          python3 -m pip install setuptools wheel twine
           
-          # Create a temporary container to extract the wheel
-          docker create --name temp-container sllm-store-builder:${{ matrix.cuda-version }}
-          
-          # Create dist directory and extract wheels
-          mkdir -p ./sllm_store/dist
-          docker cp temp-container:/dist/. ./sllm_store/dist/
-          
-          # Clean up temporary container
-          docker rm temp-container
+          # Build the wheel
+          python3 setup.py sdist bdist_wheel
           
           # Set wheel name environment variables
-          wheel_name=$(ls ./sllm_store/dist/*.whl | xargs -n 1 basename)
+          wheel_name=$(ls dist/*.whl | xargs -n 1 basename)
           asset_name=${wheel_name//"linux"/"manylinux1"}
           echo "wheel_name=${wheel_name}" >> $GITHUB_ENV
           echo "asset_name=${asset_name}" >> $GITHUB_ENV
@@ -170,7 +164,7 @@ jobs:
           asset_content_type: application/*
 
       - name: Rename wheel
-        working-directory: sllm_store  # Specify the directory
+        working-directory: sllm_store
         run: |
           mv dist/${{ env.wheel_name }} dist/${{ env.asset_name }}
 
