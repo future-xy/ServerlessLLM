@@ -4,7 +4,7 @@ services:
     build:
       context: ../../
       dockerfile: Dockerfile
-    image: serverlessllm/sllm:latest
+    image: futurexy/sllm:v0.0.17
     container_name: sllm_head
     environment:
       - MODEL_FOLDER=${MODEL_FOLDER}
@@ -21,7 +21,7 @@ services:
     build:
       context: ../../
       dockerfile: Dockerfile
-    image: serverlessllm/sllm:latest
+    image: futurexy/sllm:v0.0.17
     container_name: sllm_worker_0
     deploy:
       resources:
@@ -29,7 +29,7 @@ services:
           devices:
             - driver: nvidia
               capabilities: ["gpu"]
-              device_ids: ["0"] # Assigns GPU 0 to the worker
+              device_ids: ["3"] # Assigns GPU 0 to the worker
     environment:
       - WORKER_ID=0
       - STORAGE_PATH=/models
