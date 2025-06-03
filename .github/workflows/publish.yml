@@ -111,7 +111,7 @@ jobs:
 
   sllm-store:
     name: Build Wheel For ServerlessLLM Store
-    runs-on: [self-hosted, linux, gpu]  # Use self-hosted runner with GPU
+    runs-on: [self-hosted, linux]  # Use self-hosted runner with GPU
     needs: release
     container:
       image: nvidia/cuda:12.3.0-devel-ubuntu20.04
