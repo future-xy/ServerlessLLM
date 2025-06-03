@@ -121,6 +121,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install dependencies
+        run: |
+          apt-get update && apt-get install -y ca-certificates git
+          
       - name: Build sllm-store wheel
         working-directory: sllm_store
         env:
