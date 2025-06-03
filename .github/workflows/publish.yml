@@ -139,11 +139,11 @@ jobs:
           # Build the wheel
           python3 setup.py sdist bdist_wheel
           
-          # Set wheel name environment variables
+          # Set wheel name environment variables using portable approach
           wheel_name=$(ls dist/*.whl | xargs -n 1 basename)
-          asset_name=${wheel_name//"linux"/"manylinux1"}
-          echo "wheel_name=${wheel_name}" >> $GITHUB_ENV
-          echo "asset_name=${asset_name}" >> $GITHUB_ENV
+          asset_name=$(echo "$wheel_name" | sed 's/linux/manylinux1/')
+          echo "wheel_name=$wheel_name" >> $GITHUB_ENV
+          echo "asset_name=$asset_name" >> $GITHUB_ENV
 
       - name: Upload Release Asset
         uses: actions/upload-release-asset@v1
