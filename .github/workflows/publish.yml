@@ -181,6 +181,9 @@ jobs:
     name: Build and Push Docker Images
     runs-on: [self-hosted, linux]
     needs: release
+    container:
+      image: docker:24-dind
+      options: --privileged
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -198,7 +201,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Extract tag info
-        shell: bash
+        shell: sh
         run: |
           echo "RELEASE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
