@@ -52,7 +52,7 @@ jobs:
             git commit -m "Update documentation from main repository"
 
             # Set up authentication with the PAT (this still needs to be a secret)
-            git remote set-url origin https://${{ vars.GIT_USERNAME }}:${{ secrets.DOCS_GITHUB_TOKEN }}@github.com/ServerlessLLM/serverlessllm.github.io.git
+            git remote set-url origin https://${{ secrets.DOCS_GITHUB_TOKEN }}@github.com/ServerlessLLM/serverlessllm.github.io.git
             git push
           else
             echo "No changes to commit"
